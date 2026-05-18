@@ -177,32 +177,44 @@ Sprint 2: 38 passed
 
 ## Research Narrative Arcs and Methodology Arcs
 
-This Week 1 package was produced through a research session that moved from
-secret hygiene, to curriculum extraction, to evidence assessment, to public
-deployment, to adversarial repair. The main lesson of the session is that a
-credible Gauntlet submission is not a polished story about completion; it is a
-traceable chain of claims, artifacts, tests, deployments, reviews, and honest
-caveats.
+This Week 1 package emerged through a research session that moved from secret
+hygiene, to curriculum extraction, to completion-report skepticism, to public
+deployment, to adversarial repair, to progressive security hardening. The
+overarching narrative arc is a shift from *claims about completion* to
+*reviewable evidence of ownership*. The methodological arc is a shift from
+generating artifacts to repeatedly asking whether each artifact can survive a
+strict reviewer, a live smoke test, a security audit, and an honest process
+check.
+
+The controlling rule of the session became:
+
+```text
+Do not ask reviewers to trust a claim. Give them an artifact, a command, a URL,
+a test result, a transcript, or an explicit caveat.
+```
 
 ### Arc 1: Exposure To Secret Hygiene
 
-**Story box:** The session began with a shell startup warning that exposed an
-Aristotle API key in terminal output. The practical story was not just "hide
-the key"; it was learning why shell configuration syntax matters, why secrets
-should not appear in logs, and how to verify an environment variable without
-printing its value.
+**Narrative/story box:** The session began with a shell startup warning that
+printed an Aristotle API key. That turned a small `.zshrc` syntax mistake into
+a concrete lesson about secret exposure: a secret is not only at risk when it is
+committed; it is also exposed when it appears in shell errors, chat messages,
+screenshots, terminal recordings, or logs.
 
 **Method box:** The working heuristic became: set secrets in the form
 `export NAME=value`, never add spaces around `=`, never echo the raw value, and
 verify with presence checks such as `echo ${NAME:+set}`. If a secret appears in
 chat, logs, screenshots, or shell errors, treat it as exposed and rotate it.
+Later security work reused the same principle by scrubbing sensitive
+environment variables before spawning MCP subprocesses.
 
 ### Arc 2: Curriculum Extraction To Artifact Generation
 
-**Story box:** The work then expanded into extracting the Beyond Vibe Code
-curriculum and principles, producing Markdown, LaTeX, PDF, and DOCX outputs,
-and organizing deliverables into a dedicated folder. That shifted the session
-from one-off troubleshooting into reproducible research packaging.
+**Narrative/story box:** The work then expanded into extracting the Beyond Vibe
+Code curriculum and principles, producing Markdown, LaTeX, PDF, and DOCX
+outputs, and organizing deliverables into a dedicated folder. The session moved
+from fixing a local configuration issue to building a reproducible research
+package.
 
 **Method box:** The method was artifact-first extraction: preserve source
 structure, generate portable formats, keep deliverables together, and make the
@@ -212,10 +224,11 @@ principles, and generated formats without guessing."
 
 ### Arc 3: Completion Claims To Evidence Claims
 
-**Story box:** A generated completion report initially looked comprehensive but
-collapsed under review because many lessons were filled with generic database
-language. The narrative turned from "coverage exists" to "coverage must be
-lesson-specific and evidence-backed."
+**Narrative/story box:** A generated completion report initially looked
+comprehensive, but it collapsed under review because many lessons were filled
+with generic database language. The report had coverage-shaped structure but
+not lesson-specific substance. That became the first major methodological
+correction: completion language is not completion evidence.
 
 **Method box:** The rubric became claim-to-evidence mapping. Every completion
 claim should answer: what artifact exists, where is it, how was it tested, what
@@ -223,58 +236,100 @@ was rejected or changed, and what still cannot be honestly claimed. Generic
 templates are useful only when they are filled with specific code, transcripts,
 screenshots, logs, commits, or deployment links.
 
-### Arc 4: Local Practice To Public Deployment
+### Arc 4: Local Practice To Week 1 Evidence Package
 
-**Story box:** The Week 1 Gauntlet package started as local evidence: a REST API,
-an MCP-style CLI, reports, tests, and smoke outputs. The public deployment on
-Render changed the submission from "runs on my machine" to "externally
-inspectable." The blank root page was clarified as expected API behavior because
-the live proof lives under `/health`, `/api/v1/tasks`, `/api/v1/tasks/stats`,
-and `/docs`.
+**Narrative/story box:** The Week 1 Gauntlet package started as local evidence:
+a REST API, an MCP-style CLI, reports, tests, and smoke outputs. Initial scores
+improved when the work became more honest about what was missing, but the repo
+was still not strict-pass evidence because public deployment, demo evidence,
+human review, and process artifacts were incomplete.
+
+**Method box:** The evaluation method separated local-practice evidence from
+strict-Gauntlet evidence. Local tests can prove implementation behavior, but
+strict review also requires public reachability, demonstration, peer review,
+AI/process logs, and honest limitations. This distinction prevented the repo
+from overclaiming a perfect pass.
+
+### Arc 5: Public Deployment To External Verification
+
+**Narrative/story box:** Deploying Sprint 1 on Render changed the submission
+from "runs locally" to "externally inspectable." The blank root page was
+reframed as expected API behavior because the real public proof lives under
+`/health`, `/api/v1/tasks`, `/api/v1/tasks/stats`, and `/docs`. The demo
+recordings then added human-readable walkthrough evidence for both the live API
+and Sprint 2 CLI.
 
 **Method box:** The deployment method was endpoint-first verification. A public
 URL counts only when a reviewer can hit concrete endpoints and receive valid
-responses. Free-tier behavior was documented rather than hidden: cold starts can
-take time, and temporary storage means task data is demo data.
+responses. Free-tier behavior was documented rather than hidden: cold starts
+can take time, and temporary storage means task data is demo data. The workflow
+also separated browser actions from shell commands: URLs are opened in a
+browser or checked with `curl`, not executed directly in `zsh`.
 
-### Arc 5: Red-Team Review To Repair Plan
+### Arc 6: Red-Team Review To Repair Plan
 
-**Story box:** The adversarial review exposed the gap between "credible-looking"
-and "review-ready." Sprint 1 had public proof, but Sprint 2 lacked tests,
-stronger protocol evidence, peer review, and a clean ownership trail. The report
-also overclaimed completion, which was treated as a process defect rather than
-wording polish.
+**Narrative/story box:** The adversarial review exposed the gap between
+"credible-looking" and "review-ready." Sprint 1 had public proof, but Sprint 2
+needed real tests, protocol evidence, AI logs, review notes, packaging clarity,
+and a clean ownership trail. The report also overclaimed completion, which was
+treated as a process defect rather than wording polish.
 
 **Method box:** The red-team method was to test explicit, implicit, inferred,
 extrapolated, and hidden weaknesses. Each finding needed a repair, an acceptance
 test, and a before/after interpretation. The repair target was not maximum
 optimism; it was reducing the number of claims a strict reviewer could falsify.
 
-### Arc 6: Repair Pass To Review-Ready Evidence Package
+### Arc 7: Repair Pass To Review-Ready Evidence Package
 
-**Story box:** The repair pass converted the repo into a stronger evidence
-package: root-level verification commands, manual CI, Sprint 2 tests, MCP
-framing support, `roots/list` handling, AI logs, adversarial review notes, live
-stress results, and a process caveat for the reconstructed commit history.
+**Narrative/story box:** The repair pass converted the repo into a stronger
+evidence package: root-level verification commands, manual CI, Sprint 2 tests,
+MCP framing support, `roots/list` handling, AI logs, adversarial review notes,
+live stress results, demo links, and a process caveat for the reconstructed
+commit history.
 
 **Method box:** The repair loop was: identify a falsifiable weakness, patch the
 smallest relevant surface, add or update tests, update docs to match the real
 state, run local verification, smoke the public service, and push the result.
-When the official MCP server contradicted an assumption about framing, the
-method changed from "defend the first fix" to "support the real server and test
-both modes."
+When GitHub Actions was unavailable, the method changed from "wait for hosted
+CI" to "build a manual CI transcript reviewers can reproduce." When the official
+MCP server needed a longer `npx` cold-start window, the method changed from
+"assume a 30-second timeout is enough" to "make timeout bounded and
+configurable."
 
-### Arc 7: Remaining Human Evidence
+### Arc 8: Progressive Security Audit To Hardened Evidence
 
-**Story box:** The final state is intentionally not labeled as perfect. The repo
-is appropriate for adversarial peer review, but a strict 100/100 still requires
-human/process artifacts that cannot be manufactured inside the codebase:
-recorded demo, human Sprint 2 review, and future real-time commit cadence.
+**Narrative/story box:** The progressive security audit shifted the work from
+Gauntlet-readiness to adversarial hardening. The audit found issues across
+Sprint 1 and Sprint 2: naive UTC timestamps, fragile tag filtering, invalid
+sort behavior, optional-field parsing crashes, public write risk, missing rate
+limits, CORS looseness, MCP subprocess exposure, path traversal risk, unsafe
+glob patterns, unbounded protocol reads, unbounded file previews, and weak
+command parsing.
+
+**Method box:** The security methodology was progressive hardening from obvious
+warnings to deeper failure modes. Low-hanging fixes closed warning noise and
+stale docs. Medium-depth fixes closed logic bugs and path containment issues.
+Deeper fixes added default-deny behavior, bounded resource use, subprocess
+environment scrubbing, exact validation, and regression tests. The final proof
+was not the patch itself; it was the updated verification state: Sprint 1
+`42 passed`, Sprint 2 `38 passed`, manual CI passing, Python 3.12 deprecation
+checks passing, and official MCP smoke separately verified.
+
+### Arc 9: Remaining Human Evidence
+
+**Narrative/story box:** The final state is intentionally not labeled as
+perfect. The repo is now review-ready and materially hardened, but a strict
+100/100 still depends on human/process artifacts that cannot be manufactured
+inside the codebase: human Sprint 2 review and future real-time commit cadence.
+The demo evidence is now linked; the remaining gap is not code functionality,
+but external human verification and future process discipline.
 
 **Method box:** The ownership rule is: do not fake process evidence. If evidence
 does not exist, disclose it, create the next honest artifact, and link it when
 complete. This is the difference between a persuasive portfolio and a
-Gauntlet-grade evidence package.
+Gauntlet-grade evidence package. The repo should therefore stay labeled as
+review-ready, not perfect, until human comments/responses and future cadence
+evidence exist.
 
 ## Human Sprint 2 Peer Review Issue Starters
 
