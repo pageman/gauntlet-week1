@@ -84,7 +84,7 @@ test suite.
 Expected terminal result:
 
 ```text
-24 passed
+38 passed
 ```
 
 ## Week 1 Live API + Sprint 2 CLI Verification Flow
@@ -128,6 +128,12 @@ server smoke, run:
 RUN_OFFICIAL_MCP_SMOKE=1 bash scripts/manual-ci.sh
 ```
 
+To include the Python 3.12 deprecation gate, run:
+
+```bash
+RUN_PY312_DEPRECATION_CHECK=1 PYTHON312=/path/to/python3.12 bash scripts/manual-ci.sh
+```
+
 Committed evidence and instructions live in `MANUAL-CI-EVIDENCE.md`. If a
 reviewer wants issue-based proof, copy the script output into a GitHub Issue
 titled `Manual CI Evidence` and link it from the review response.
@@ -137,12 +143,37 @@ titled `Manual CI Evidence` and link it from the review response.
 This repo is now appropriate for adversarial peer review. It should not claim a
 perfect strict Week 1 pass until these human/process artifacts are attached:
 
-- a real 3-minute demo video link,
 - a human Sprint 2 peer review with at least five comments and responses,
 - a real-time atomic commit cadence in future weeks.
 
-Everything else that can be repaired in-repo has been made explicit, tested, or
-documented.
+A real demo link is now attached above. Everything else that can be repaired
+in-repo has been made explicit, tested, or documented.
+
+## Progressive Security Audit Repair
+
+The repository has also absorbed the progressive security audit from
+`gauntlet_week1_progressive_security_audit.md`. The in-repo repairs cover:
+
+- timezone-aware UTC timestamps and warning-free Python 3.12 behavior,
+- exact JSON tag filtering and explicit sort-field/sort-order validation,
+- safe parsing for malformed stored tags, due dates, and timestamps,
+- opt-in write authentication, lightweight rate limiting, CORS origin
+  validation, and audit logging for mutating API operations,
+- Sprint 2 symlink-aware path containment and sanitized directory-listing
+  reconstruction,
+- MCP subprocess environment scrubbing, bounded request timeouts, resource
+  limits, bounded protocol message reads, and bounded unrelated-message loops,
+- safer MCP server command parsing through JSON arrays, shell words, or legacy
+  comma form,
+- safer file-preview behavior, UTF-8 validation for created content, glob
+  pattern validation, and no-direct-filesystem-operation regression tests.
+
+Latest local verification:
+
+```text
+Sprint 1: 42 passed
+Sprint 2: 38 passed
+```
 
 ## Research Narrative Arcs and Methodology Arcs
 
@@ -285,27 +316,25 @@ table and keep the protocol tests linked.
 Comment:
 
 ```text
-mcpfs read currently displays text returned by the server, but the CLI does not
-clearly protect the terminal from very large or binary-like output. Please add
-a max-byte or max-character preview guard, or document why line limiting is the
-Week 1 boundary.
+mcpfs read now has bounded preview behavior. Please add or verify one reviewer
+transcript showing what happens with a very large file and confirm the output
+is truncated without a traceback.
 ```
 
-Expected response: either implement a bounded preview option or add a clear
-known limitation with a Week 2 follow-up issue.
+Expected response: link the existing regression test and add a short terminal
+transcript or screenshot to the review response.
 
 ### Issue 4: Make server command parsing safer than comma-splitting
 
 Comment:
 
 ```text
-MCP_SERVER_CMD is split on commas. That is simple, but it can break if a path or
-argument contains a comma. Please consider JSON-array parsing, shlex parsing, or
-a documented limitation with examples.
+MCP_SERVER_CMD now supports JSON arrays, shell words, and the old comma format.
+Please verify the README shows the recommended JSON-array form first and keeps
+the comma form labeled as a compatibility fallback.
 ```
 
-Expected response: patch `get_mcp_client()` to accept a JSON array first, with
-comma-splitting kept only as a compatibility fallback, or document the tradeoff.
+Expected response: link the parser tests and the README configuration section.
 
 ### Issue 5: Add CLI package/release instructions
 

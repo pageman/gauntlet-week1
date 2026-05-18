@@ -20,36 +20,63 @@ Optional official MCP server smoke:
 RUN_OFFICIAL_MCP_SMOKE=1 bash scripts/manual-ci.sh
 ```
 
+The official MCP smoke uses `npx`; it may need network access on the first run.
+If the local environment blocks package downloads, run the primary manual CI
+without `RUN_OFFICIAL_MCP_SMOKE` and attach the separate official-smoke
+transcript once network access is available.
+
 ## What Manual CI Covers
 
 | Check | Command path | Expected result |
 | --- | --- | --- |
 | Sprint 1 setup | `sprint1-api/requirements.txt` | dependencies install |
-| Sprint 1 tests | `python -m pytest tests -q` in `sprint1-api/` | `36 passed` |
+| Sprint 1 tests | `python -m pytest tests -q` in `sprint1-api/` | `42 passed` |
 | Sprint 2 setup | `pip install -e ".[dev]"` in `sprint2-cli/` | package installs |
-| Sprint 2 tests | `python -m pytest tests -q` in `sprint2-cli/` | `24 passed` |
-| Official MCP smoke | `mcpfs read README.md --lines 5` | README preview appears |
+| Sprint 2 tests | `python -m pytest tests -q` in `sprint2-cli/` | `38 passed` |
 | Live API smoke | `curl /health`, `/api/v1/tasks`, `/api/v1/tasks/stats` | JSON responses |
-| Python 3.12 deprecation check | `PYTHONWARNINGS=error::DeprecationWarning python -m pytest tests -q` in `sprint1-api/` | `36 passed` |
+| Optional official MCP smoke | `mcpfs read README.md --lines 5` | README preview appears |
+| Optional Python 3.12 deprecation check | `PYTHONWARNINGS=error::DeprecationWarning python -m pytest tests -q` in `sprint1-api/` | `42 passed` |
 
 ## Latest Verified Results
 
-Date: 2026-05-18 13:20:19 PST
+Date: 2026-05-18 13:50:27 PST
 
 Command:
 
 ```bash
-PYTHON=/private/tmp/gauntlet-manual-ci-venv/bin/python RUN_SETUP=0 RUN_OFFICIAL_MCP_SMOKE=1 bash scripts/manual-ci.sh
+PYTHON=/private/tmp/gauntlet-manual-ci-venv/bin/python RUN_SETUP=0 RUN_LIVE_SMOKE=0 RUN_OFFICIAL_MCP_SMOKE=0 bash scripts/manual-ci.sh
 ```
 
 Result:
 
 ```text
 manual CI: completed
-sprint1-api: 36 passed
-sprint2-cli: 24 passed
-official MCP smoke: README preview returned through npx @modelcontextprotocol/server-filesystem
-Python 3.12 deprecation check: 36 passed with DeprecationWarning treated as an error
+sprint1-api: 42 passed
+sprint2-cli: 38 passed
+```
+
+Separate Python 3.12 deprecation check:
+
+```bash
+PYTHONWARNINGS=error::DeprecationWarning python -m pytest tests -q
+```
+
+Result:
+
+```text
+42 passed with DeprecationWarning treated as an error
+```
+
+Separate official MCP smoke, network-enabled for `npx`:
+
+```bash
+MCP_REQUEST_TIMEOUT=120 python -m mcpfs.cli read README.md --lines 5
+```
+
+Result:
+
+```text
+README preview returned through npx @modelcontextprotocol/server-filesystem
 ```
 
 Live API smoke:

@@ -8,8 +8,11 @@ This module defines the CLI commands using Click and handles:
 """
 
 import asyncio
+import json
 import os
+import shlex
 import sys
+from contextlib import asynccontextmanager
 from typing import Optional
 
 import click
@@ -27,20 +30,79 @@ console = Console()
 error_console = Console(stderr=True)
 
 
+def _parse_server_command(cmd_string: str | None, fallback_path: str) -> list[str]:
+    """Parse MCP_SERVER_CMD as JSON array, shell words, or legacy comma form."""
+    if not cmd_string:
+        return ["npx", "-y", "@modelcontextprotocol/server-filesystem", fallback_path]
+
+    stripped = cmd_string.strip()
+    if not stripped:
+        return ["npx", "-y", "@modelcontextprotocol/server-filesystem", fallback_path]
+
+    if stripped.startswith("["):
+        try:
+            parsed = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            raise MCPConnectionError(
+                "MCP_SERVER_CMD contains invalid JSON",
+                suggestion='Use a JSON array such as ["npx","-y","@modelcontextprotocol/server-filesystem","."]',
+            ) from exc
+        if isinstance(parsed, list) and parsed and all(isinstance(part, str) for part in parsed):
+            return parsed
+        raise MCPConnectionError(
+            "MCP_SERVER_CMD JSON must be a non-empty string array",
+            suggestion='Use a value such as ["npx","-y","@modelcontextprotocol/server-filesystem","."]',
+        )
+
+    if "," in stripped and not any(char.isspace() for char in stripped):
+        legacy = [part.strip() for part in stripped.split(",") if part.strip()]
+        if legacy:
+            return legacy
+
+    try:
+        parsed = shlex.split(stripped)
+    except ValueError:
+        parsed = []
+    if parsed:
+        return parsed
+
+    legacy = [part.strip() for part in stripped.split(",") if part.strip()]
+    if legacy:
+        return legacy
+
+    raise MCPConnectionError(
+        "MCP_SERVER_CMD could not be parsed",
+        suggestion="Use shell words, a JSON array, or the legacy comma-separated form.",
+    )
+
+
 def get_mcp_client() -> MCPClient:
     """Create an MCP client configured for the filesystem server."""
     server_path = os.path.abspath(os.environ.get("MCP_SERVER_PATH", os.getcwd()))
-    server_cmd = os.environ.get(
-        "MCP_SERVER_CMD",
-        "npx,-y,@modelcontextprotocol/server-filesystem," + server_path,
-    ).split(",")
+    server_cmd = _parse_server_command(os.environ.get("MCP_SERVER_CMD"), server_path)
     framing = os.environ.get("MCP_STDIO_FRAMING", "jsonl")
+    request_timeout = os.environ.get("MCP_REQUEST_TIMEOUT", "30")
 
     return MCPClient(
         server_command=server_cmd,
         allowed_paths=[server_path],
         framing=framing,
+        request_timeout=request_timeout,
     )
+
+
+@asynccontextmanager
+async def mcp_session():
+    """Connect and disconnect the MCP client around a command."""
+    client = get_mcp_client()
+    try:
+        await client.connect()
+        yield client
+    finally:
+        try:
+            await client.disconnect()
+        except Exception:
+            pass
 
 
 def run_async(coro):
@@ -110,9 +172,7 @@ def search(pattern: str, path: str):
         mcpfs search "*.md" --path /home/user/docs
     """
     async def _search():
-        client = get_mcp_client()
-        try:
-            await client.connect()
+        async with mcp_session() as client:
             ops = FileOperations(client)
             results = await ops.search_files(pattern, path)
 
@@ -131,8 +191,6 @@ def search(pattern: str, path: str):
 
             console.print(table)
             console.print(f"\n[green]{len(results)} file(s) found[/green]")
-        finally:
-            await client.disconnect()
 
     try:
         run_async(_search())
@@ -144,7 +202,7 @@ def search(pattern: str, path: str):
 
 @cli.command()
 @click.argument("path", default=".")
-@click.option("--depth", "-d", default=3, help="Maximum depth to display")
+@click.option("--depth", "-d", default=3, type=click.IntRange(min=1), help="Maximum depth to display")
 def tree(path: str, depth: int):
     """Display directory tree structure.
 
@@ -154,9 +212,7 @@ def tree(path: str, depth: int):
         mcpfs tree /home/user/project
     """
     async def _tree():
-        client = get_mcp_client()
-        try:
-            await client.connect()
+        async with mcp_session() as client:
             ops = FileOperations(client)
             max_depth = max(depth, 1)
 
@@ -179,8 +235,6 @@ def tree(path: str, depth: int):
 
             console.print(tree_widget)
             console.print(f"\n[dim]Displayed to depth {max_depth}[/dim]")
-        finally:
-            await client.disconnect()
 
     try:
         run_async(_tree())
@@ -201,9 +255,7 @@ def info(file: str):
         mcpfs info README.md
     """
     async def _info():
-        client = get_mcp_client()
-        try:
-            await client.connect()
+        async with mcp_session() as client:
             ops = FileOperations(client)
             file_info = await ops.get_file_info(file)
 
@@ -219,8 +271,6 @@ def info(file: str):
                 table.add_row("Modified", file_info.modified)
 
             console.print(table)
-        finally:
-            await client.disconnect()
 
     try:
         run_async(_info())
@@ -232,7 +282,7 @@ def info(file: str):
 
 @cli.command()
 @click.argument("file")
-@click.option("--lines", "-n", default=None, type=int, help="Number of lines to show")
+@click.option("--lines", "-n", default=None, type=click.IntRange(min=1), help="Number of lines to show")
 def read(file: str, lines: Optional[int]):
     """Read and display file contents.
 
@@ -242,9 +292,7 @@ def read(file: str, lines: Optional[int]):
         mcpfs read /home/user/notes.txt -n 50
     """
     async def _read():
-        client = get_mcp_client()
-        try:
-            await client.connect()
+        async with mcp_session() as client:
             ops = FileOperations(client)
             content = await ops.read_file(file, max_lines=lines)
 
@@ -253,8 +301,6 @@ def read(file: str, lines: Optional[int]):
                 title=f"[bold]{file}[/bold]",
                 border_style="blue",
             ))
-        finally:
-            await client.disconnect()
 
     try:
         run_async(_read())
@@ -276,14 +322,10 @@ def create(file: str, content: str):
         mcpfs create README.md --content "# My Project"
     """
     async def _create():
-        client = get_mcp_client()
-        try:
-            await client.connect()
+        async with mcp_session() as client:
             ops = FileOperations(client)
             result = await ops.create_file(file, content)
             console.print(f"[green]✓[/green] {result}")
-        finally:
-            await client.disconnect()
 
     try:
         run_async(_create())
@@ -305,14 +347,10 @@ def move(source: str, dest: str):
         mcpfs move draft.md final.md
     """
     async def _move():
-        client = get_mcp_client()
-        try:
-            await client.connect()
+        async with mcp_session() as client:
             ops = FileOperations(client)
             result = await ops.move_file(source, dest)
             console.print(f"[green]✓[/green] {result}")
-        finally:
-            await client.disconnect()
 
     try:
         run_async(_move())
@@ -333,9 +371,7 @@ def stats(path: str):
         mcpfs stats /home/user/project
     """
     async def _stats():
-        client = get_mcp_client()
-        try:
-            await client.connect()
+        async with mcp_session() as client:
             ops = FileOperations(client)
             dir_stats = await ops.get_directory_stats(path)
 
@@ -360,8 +396,6 @@ def stats(path: str):
                     type_table.add_row(ext, str(count))
 
                 console.print(type_table)
-        finally:
-            await client.disconnect()
 
     try:
         run_async(_stats())

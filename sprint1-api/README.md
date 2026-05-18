@@ -161,17 +161,24 @@ README.md           # This file
 
 - **AI-First Development**: Built using Claude Code with rigorous validation discipline
 - **Comprehensive Validation**: Pydantic models with custom validators for all inputs
-- **Full Endpoint Coverage**: 36 tests covering all endpoints and edge cases
+- **Full Endpoint Coverage**: 42 tests covering all endpoints and edge cases
 - **Clean Error Handling**: Structured JSON error responses with actionable messages
 - **Async/Await**: Built on FastAPI's async foundation for high concurrency
 - **Deployment-Ready**: Includes Docker support, health checks, and Render config
 - **Database Flexibility**: SQLite for Week 1 demo/development; PostgreSQL is future work
+- **Security Guardrails**: Optional write-token auth, lightweight rate limiting,
+  CORS origin validation, audit logging, exact tag filtering, and safe parsing
+  for malformed stored data
 
 ## Environment Variables
 
 - `DATABASE_PATH` — Path to SQLite database (default: `tasks.db`)
 - `PORT` — Server port supplied by the host platform; do not hardcode it on Render
-- `ALLOWED_ORIGINS` — Comma-separated CORS origins (default: `*` for Week 1 demo)
+- `ALLOWED_ORIGINS` — Comma-separated CORS origins (default: local development origins)
+- `API_AUTH_TOKEN` — Optional token for write endpoints; accepted as
+  `Authorization: Bearer ...` or `X-API-Key`
+- `RATE_LIMIT_REQUESTS` — Per-client request count for `/api/` routes (default: `120`)
+- `RATE_LIMIT_WINDOW_SECONDS` — Rate-limit window in seconds (default: `60`)
 
 ## Testing
 
@@ -185,6 +192,8 @@ The test suite includes:
 - **Sorting tests** — Multiple sort fields and orders
 - **Edge cases** — Concurrent operations, not-found scenarios
 - **Error handling** — Proper HTTP status codes and error messages
+- **Security regression tests** — Write auth, rate limiting, invalid sort
+  rejection, exact tag matching, and corrupt stored JSON/timestamp handling
 
 ## AI Interaction Log
 
@@ -206,6 +215,9 @@ Root Directory: sprint1-api
 Build Command: pip install -r requirements.txt
 Start Command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
 Environment: DATABASE_PATH=/tmp/tasks.db
+ALLOWED_ORIGINS=https://gauntlet-week1.onrender.com
+ENVIRONMENT=production
+API_AUTH_TOKEN=<Render secret>
 Health Check Path: /health
 ```
 
@@ -218,8 +230,10 @@ verified Render deployment as the public Week 1 evidence.
 
 - Single-instance deployment (no horizontal scaling in this sprint)
 - SQLite not recommended for high-concurrency production (use PostgreSQL)
-- No authentication/authorization in this sprint
-- No rate limiting in this sprint
+- Write authentication is optional unless `API_AUTH_TOKEN` is configured; this
+  is sufficient for Week 1 demo hardening but not a full identity system
+- Rate limiting is in-process and per-instance; use a gateway or managed
+  limiter for production traffic
 
 ## Development
 

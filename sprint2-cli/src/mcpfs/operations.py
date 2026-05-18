@@ -7,11 +7,19 @@ Each function in this module corresponds to a CLI command and handles:
 """
 
 import os
+import re
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from .mcp_client import MCPClient, MCPToolError, MCPConnectionError
+from .mcp_client import MCPClient, MCPToolError
+
+
+MAX_PREVIEW_BYTES = 100_000
+MAX_PREVIEW_LINES = 1000
+SAFE_GLOB_RE = re.compile(r"^[A-Za-z0-9*?\[\]_.-]+$")
+audit_logger = logging.getLogger("mcpfs.audit")
 
 
 @dataclass
@@ -45,6 +53,53 @@ class FileOperations:
     def __init__(self, client: MCPClient):
         self.client = client
 
+    def _parse_text_result(self, result: list[dict]) -> str:
+        """Extract text content from an MCP tool result."""
+        if not isinstance(result, list):
+            raise MCPToolError(
+                "MCP server returned a malformed response",
+                suggestion="Verify the requested tool is supported by this MCP server.",
+            )
+        chunks: list[str] = []
+        saw_text = False
+        for item in result:
+            if not isinstance(item, dict):
+                continue
+            item_type = item.get("type")
+            text = item.get("text", "")
+            if item_type == "error":
+                raise MCPToolError(
+                    text or "MCP server returned an error result",
+                    suggestion="Check the path, permissions, and MCP server output.",
+                )
+            if item_type == "text":
+                saw_text = True
+                chunks.append(text)
+        if not saw_text:
+            raise MCPToolError(
+                "MCP server returned an empty or unsupported response",
+                suggestion="Verify the requested tool is supported by this MCP server.",
+            )
+        return "".join(chunks)
+
+    def _is_path_allowed(self, abs_path: str, allowed_roots: list[str]) -> bool:
+        """Return true when a real path stays inside at least one allowed root."""
+        try:
+            real_path = os.path.normcase(os.path.realpath(abs_path))
+            for root in allowed_roots:
+                real_root = os.path.normcase(os.path.realpath(root))
+                if os.path.commonpath([real_root, real_path]) == real_root:
+                    return True
+        except (OSError, ValueError):
+            return False
+        return False
+
+    def _is_safe_entry_name(self, name: str) -> bool:
+        """Reject directory-listing names that would escape the shown directory."""
+        if not name or name in {".", ".."}:
+            return False
+        return "/" not in name and "\\" not in name
+
     def _resolve_path(self, path: str) -> str:
         """Resolve a path and ensure it remains within an allowed MCP root.
 
@@ -52,15 +107,14 @@ class FileOperations:
         but metadata, listing, reading, writing, and moving still happen through
         MCP tool calls.
         """
-        abs_path = os.path.abspath(path)
-        allowed_paths = [os.path.abspath(root) for root in self.client.allowed_paths]
-        if allowed_paths:
-            if not any(os.path.commonpath([root, abs_path]) == root for root in allowed_paths):
-                roots = ", ".join(allowed_paths)
-                raise MCPToolError(
-                    f"Path '{path}' is outside the configured MCP workspace",
-                    suggestion=f"Use a path under one of the allowed roots: {roots}",
-                )
+        abs_path = os.path.realpath(os.path.abspath(path))
+        allowed_paths = [os.path.realpath(os.path.abspath(root)) for root in self.client.allowed_paths]
+        if allowed_paths and not self._is_path_allowed(abs_path, allowed_paths):
+            roots = ", ".join(allowed_paths)
+            raise MCPToolError(
+                f"Path '{path}' is outside the configured MCP workspace",
+                suggestion=f"Use a path under one of the allowed roots: {roots}",
+            )
         return abs_path
 
     async def search_files(self, pattern: str, search_path: str = ".") -> list[str]:
@@ -73,7 +127,20 @@ class FileOperations:
         Returns:
             List of matching file paths
         """
+        if (
+            ".." in pattern
+            or "/" in pattern
+            or "\\" in pattern
+            or os.path.isabs(pattern)
+            or not SAFE_GLOB_RE.fullmatch(pattern)
+        ):
+            raise MCPToolError(
+                f"Unsafe search pattern: {pattern}",
+                suggestion="Use a filename glob such as '*.py' or 'test_*' without path separators.",
+            )
+
         abs_path = self._resolve_path(search_path)
+        audit_logger.info("action=search_files path=%s pattern=%s", abs_path, pattern)
 
         try:
             result = await self.client.call_tool("search_files", {
@@ -88,15 +155,11 @@ class FileOperations:
                 )
             raise
 
-        # Parse results
         matches = []
-        for item in result:
-            if item.get("type") == "text":
-                text = item.get("text", "")
-                # Results come as newline-separated paths
-                for line in text.strip().split("\n"):
-                    if line.strip():
-                        matches.append(line.strip())
+        text = self._parse_text_result(result)
+        for line in text.strip().split("\n"):
+            if line.strip():
+                matches.append(line.strip())
 
         return matches
 
@@ -110,6 +173,7 @@ class FileOperations:
             List of directory entries
         """
         abs_path = self._resolve_path(path)
+        audit_logger.info("action=list_directory path=%s", abs_path)
 
         try:
             result = await self.client.call_tool("list_directory", {
@@ -124,35 +188,28 @@ class FileOperations:
             raise
 
         entries = []
-        for item in result:
-            if item.get("type") == "text":
-                text = item.get("text", "")
-                for line in text.strip().split("\n"):
-                    line = line.strip()
-                    if not line:
-                        continue
-                    # Parse directory listing format
-                    if line.startswith("[DIR]"):
-                        name = line.replace("[DIR]", "").strip()
-                        entries.append(DirectoryEntry(
-                            name=name,
-                            is_directory=True,
-                            path=os.path.join(abs_path, name),
-                        ))
-                    elif line.startswith("[FILE]"):
-                        name = line.replace("[FILE]", "").strip()
-                        entries.append(DirectoryEntry(
-                            name=name,
-                            is_directory=False,
-                            path=os.path.join(abs_path, name),
-                        ))
-                    else:
-                        # Fallback: treat as file
-                        entries.append(DirectoryEntry(
-                            name=line,
-                            is_directory=False,
-                            path=os.path.join(abs_path, line),
-                        ))
+        text = self._parse_text_result(result)
+        for line in text.strip().split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith("[DIR]"):
+                name = line.replace("[DIR]", "").strip()
+                is_directory = True
+            elif line.startswith("[FILE]"):
+                name = line.replace("[FILE]", "").strip()
+                is_directory = False
+            else:
+                name = line
+                is_directory = False
+            if not self._is_safe_entry_name(name):
+                continue
+            entry_path = self._resolve_path(os.path.join(abs_path, name))
+            entries.append(DirectoryEntry(
+                name=name,
+                is_directory=is_directory,
+                path=entry_path,
+            ))
 
         return entries
 
@@ -166,6 +223,7 @@ class FileOperations:
             FileInfo with metadata
         """
         abs_path = self._resolve_path(path)
+        audit_logger.info("action=get_file_info path=%s", abs_path)
 
         try:
             result = await self.client.call_tool("get_file_info", {
@@ -179,11 +237,7 @@ class FileOperations:
                 )
             raise
 
-        # Parse file info from response
-        info_text = ""
-        for item in result:
-            if item.get("type") == "text":
-                info_text += item.get("text", "")
+        info_text = self._parse_text_result(result)
 
         # Extract metadata from response text
         size = 0
@@ -242,6 +296,7 @@ class FileOperations:
             File content as string
         """
         abs_path = self._resolve_path(path)
+        audit_logger.info("action=read_file path=%s max_lines=%s", abs_path, max_lines)
 
         try:
             result = await self.client.call_tool("read_file", {
@@ -265,16 +320,23 @@ class FileOperations:
                 )
             raise
 
-        content = ""
-        for item in result:
-            if item.get("type") == "text":
-                content += item.get("text", "")
+        content = self._parse_text_result(result)
+
+        encoded = content.encode("utf-8", errors="replace")
+        if len(encoded) > MAX_PREVIEW_BYTES:
+            content = encoded[:MAX_PREVIEW_BYTES].decode("utf-8", errors="replace")
+            content += f"\n... (truncated after {MAX_PREVIEW_BYTES} bytes)"
 
         if max_lines is not None:
             lines = content.split("\n")
             content = "\n".join(lines[:max_lines])
             if len(lines) > max_lines:
                 content += f"\n... ({len(lines) - max_lines} more lines)"
+        else:
+            lines = content.split("\n")
+            if len(lines) > MAX_PREVIEW_LINES:
+                content = "\n".join(lines[:MAX_PREVIEW_LINES])
+                content += f"\n... ({len(lines) - MAX_PREVIEW_LINES} more lines)"
 
         return content
 
@@ -288,7 +350,16 @@ class FileOperations:
         Returns:
             Confirmation message
         """
+        try:
+            content.encode("utf-8").decode("utf-8")
+        except UnicodeError as exc:
+            raise MCPToolError(
+                "File content must be valid UTF-8 text",
+                suggestion="Write binary files outside mcpfs or encode them as text first.",
+            ) from exc
+
         abs_path = self._resolve_path(path)
+        audit_logger.info("action=create_file path=%s bytes=%s", abs_path, len(content.encode("utf-8")))
 
         try:
             await self.client.call_tool("write_file", {
@@ -317,6 +388,7 @@ class FileOperations:
         """
         abs_source = self._resolve_path(source)
         abs_dest = self._resolve_path(destination)
+        audit_logger.info("action=move_file source=%s destination=%s", abs_source, abs_dest)
 
         try:
             await self.client.call_tool("move_file", {
@@ -348,6 +420,7 @@ class FileOperations:
             Dictionary with file counts, sizes, and type breakdown
         """
         abs_path = self._resolve_path(path)
+        audit_logger.info("action=get_directory_stats path=%s", abs_path)
         entries = await self.list_directory(path)
 
         stats = {

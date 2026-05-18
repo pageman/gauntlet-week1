@@ -6,6 +6,30 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_parse_server_command_accepts_json_array():
+    from mcpfs.cli import _parse_server_command
+
+    command = _parse_server_command('["python","server.py","/tmp/workspace"]', "/tmp/workspace")
+
+    assert command == ["python", "server.py", "/tmp/workspace"]
+
+
+def test_parse_server_command_accepts_shell_words():
+    from mcpfs.cli import _parse_server_command
+
+    command = _parse_server_command('python "fake server.py" /tmp/workspace', "/tmp/workspace")
+
+    assert command == ["python", "fake server.py", "/tmp/workspace"]
+
+
+def test_parse_server_command_accepts_legacy_comma_form():
+    from mcpfs.cli import _parse_server_command
+
+    command = _parse_server_command("python,server.py,/tmp/workspace", "/tmp/workspace")
+
+    assert command == ["python", "server.py", "/tmp/workspace"]
+
+
 def run_cli(cli_env, *args):
     return subprocess.run(
         [sys.executable, "-m", "mcpfs.cli", *args],
@@ -57,6 +81,13 @@ def test_cli_read_limits_lines(cli_env):
     assert "# Demo" in result.stdout
     assert "hello" in result.stdout
     assert "world" not in result.stdout
+
+
+def test_cli_rejects_negative_line_limit(cli_env):
+    result = run_cli(cli_env, "read", "README.md", "--lines", "-1")
+
+    assert result.returncode != 0
+    assert "Invalid value" in result.stderr
 
 
 def test_cli_create_file(cli_env, workspace):

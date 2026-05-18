@@ -29,8 +29,28 @@ Set environment variables to configure the MCP server:
 # Default: uses npx to run @modelcontextprotocol/server-filesystem
 # and scopes it to the current working directory.
 export MCP_SERVER_PATH="/path/to/workspace"
-export MCP_SERVER_CMD="npx,-y,@modelcontextprotocol/server-filesystem,/path/to/workspace"
+export MCP_SERVER_CMD='["npx","-y","@modelcontextprotocol/server-filesystem","/path/to/workspace"]'
 ```
+
+`MCP_SERVER_CMD` accepts three forms, in this order:
+
+| Form | Example | Status |
+| --- | --- | --- |
+| JSON array | `["npx","-y","@modelcontextprotocol/server-filesystem","."]` | Recommended |
+| Shell words | `npx -y @modelcontextprotocol/server-filesystem .` | Supported |
+| Comma-separated | `npx,-y,@modelcontextprotocol/server-filesystem,.` | Compatibility fallback |
+
+`MCP_STDIO_FRAMING` defaults to `jsonl`, which is the tested mode for the
+official JavaScript filesystem server. `content-length` is also covered by the
+test suite for header-framed MCP servers:
+
+```bash
+export MCP_STDIO_FRAMING=jsonl
+export MCP_REQUEST_TIMEOUT=30
+```
+
+`MCP_REQUEST_TIMEOUT` is bounded by the client between 1 and 120 seconds. The
+manual official-server smoke uses 120 seconds to allow `npx` cold starts.
 
 ### Usage
 
@@ -214,13 +234,22 @@ Current default test suite:
 - Operations-layer unit tests
 - Workspace-boundary checks
 - "No direct file operation" checks for the operations layer
+- Security-regression tests for path traversal, unsafe globs, malformed MCP
+  output, bounded previews, UTF-8 writes, timeout bounds, and command parsing
+
+Latest local result:
+
+```text
+38 passed
+```
 
 ## Known Limitations
 
 1. **Requires running MCP server** — Must have Node.js and @modelcontextprotocol/server-filesystem installed
 2. **No content grep** — Search is pattern-based, not content-based
 3. **No persistent connection** — Each command creates a new connection to the server
-4. **Binary file issues** — Large or binary files may not display correctly
+4. **Binary file issues** — File previews are bounded, but binary-aware
+   rendering is still a future enhancement
 5. **No wildcard operations** — Move/create don't support wildcards
 6. **Node.js dependency** — Requires Node.js for the official MCP filesystem server
 7. **Human review still needed** — The repo includes adversarial review notes, but a strict Gauntlet pass should include a human PR review with five comments and responses

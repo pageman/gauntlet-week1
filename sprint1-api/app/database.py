@@ -6,6 +6,7 @@ Implements a repository pattern for clean separation of concerns.
 
 import uuid
 import json
+import os
 from datetime import datetime, date, timezone
 from typing import Optional
 
@@ -21,13 +22,60 @@ from app.models import (
 )
 
 
-DATABASE_PATH = "tasks.db"
+DEFAULT_DATABASE_PATH = "tasks.db"
+SORT_FIELD_MAP = {
+    "created_at": "created_at",
+    "due_date": "due_date",
+    "priority": "priority",
+    "title": "title",
+}
+SORT_ORDER_MAP = {
+    "asc": "ASC",
+    "desc": "DESC",
+}
+MIN_PAGE_SIZE = 1
+MAX_PAGE_SIZE = 100
 
 
 async def get_db_path() -> str:
     """Get database path from environment or default."""
-    import os
-    return os.environ.get("DATABASE_PATH", DATABASE_PATH)
+    return os.environ.get("DATABASE_PATH", DEFAULT_DATABASE_PATH)
+
+
+def _parse_tags(tags_json: str | None) -> list[str]:
+    """Safely parse task tags from stored JSON."""
+    if not tags_json:
+        return []
+    try:
+        parsed = json.loads(tags_json)
+    except (json.JSONDecodeError, TypeError):
+        return []
+    if isinstance(parsed, list) and all(isinstance(tag, str) for tag in parsed):
+        return parsed
+    return []
+
+
+def _parse_iso_date(value: str | None) -> date | None:
+    """Safely parse an ISO date value from storage."""
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_iso_datetime(value: str | None) -> datetime:
+    """Safely parse an ISO datetime value from storage."""
+    if not value:
+        return datetime.now(timezone.utc)
+    try:
+        parsed = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return datetime.now(timezone.utc)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 async def init_db() -> None:
@@ -69,10 +117,10 @@ def _row_to_task(row: aiosqlite.Row) -> TaskResponse:
         status=TaskStatus(row[3]),
         priority=TaskPriority(row[4]),
         assignee=row[5],
-        due_date=date.fromisoformat(row[6]) if row[6] else None,
-        tags=json.loads(row[7]) if row[7] else [],
-        created_at=datetime.fromisoformat(row[8]),
-        updated_at=datetime.fromisoformat(row[9]),
+        due_date=_parse_iso_date(row[6]),
+        tags=_parse_tags(row[7]),
+        created_at=_parse_iso_datetime(row[8]),
+        updated_at=_parse_iso_datetime(row[9]),
     )
 
 
@@ -163,16 +211,19 @@ async def list_tasks(
 
     where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
 
-    # Validate sort parameters
-    valid_sort_fields = {"created_at", "due_date", "priority", "title"}
-    if sort_by not in valid_sort_fields:
-        sort_by = "created_at"
-    if sort_order not in ("asc", "desc"):
-        sort_order = "desc"
+    # Validate and map sort parameters before interpolation.
+    if sort_by not in SORT_FIELD_MAP:
+        valid_fields = ", ".join(sorted(SORT_FIELD_MAP))
+        raise ValueError(f"Invalid sort field '{sort_by}'. Must be one of: {valid_fields}")
+    if sort_order not in SORT_ORDER_MAP:
+        raise ValueError(f"Invalid sort order '{sort_order}'. Must be 'asc' or 'desc'")
+    sort_field = SORT_FIELD_MAP[sort_by]
+    sort_direction = SORT_ORDER_MAP[sort_order]
 
     # Clamp pagination
-    per_page = min(max(per_page, 1), 100)
+    per_page = max(MIN_PAGE_SIZE, min(per_page, MAX_PAGE_SIZE))
     page = max(page, 1)
+    assert per_page > 0, "per_page must be positive"
     offset = (page - 1) * per_page
 
     async with aiosqlite.connect(db_path) as db:
@@ -184,7 +235,7 @@ async def list_tasks(
         # Get paginated results
         query = f"""SELECT id, title, description, status, priority, assignee, due_date, tags, created_at, updated_at
                     FROM tasks{where_clause}
-                    ORDER BY {sort_by} {sort_order}
+                    ORDER BY {sort_field} {sort_direction}
                     LIMIT ? OFFSET ?"""
         cursor = await db.execute(query, params + [per_page, offset])
         rows = await cursor.fetchall()
@@ -201,12 +252,7 @@ async def update_task(task_id: str, task: TaskUpdate) -> Optional[TaskResponse]:
     due_date_str = task.due_date.isoformat() if task.due_date else None
 
     async with aiosqlite.connect(db_path) as db:
-        # Check existence
-        cursor = await db.execute("SELECT id FROM tasks WHERE id = ?", (task_id,))
-        if await cursor.fetchone() is None:
-            return None
-
-        await db.execute(
+        cursor = await db.execute(
             """UPDATE tasks SET title=?, description=?, status=?, priority=?, assignee=?, due_date=?, tags=?, updated_at=?
                WHERE id=?""",
             (
@@ -221,6 +267,8 @@ async def update_task(task_id: str, task: TaskUpdate) -> Optional[TaskResponse]:
                 task_id,
             ),
         )
+        if cursor.rowcount == 0:
+            return None
         await db.commit()
 
     return await get_task(task_id)
@@ -232,14 +280,12 @@ async def update_task_status(task_id: str, status_update: StatusUpdate) -> Optio
     now = datetime.now(timezone.utc).isoformat()
 
     async with aiosqlite.connect(db_path) as db:
-        cursor = await db.execute("SELECT id FROM tasks WHERE id = ?", (task_id,))
-        if await cursor.fetchone() is None:
-            return None
-
-        await db.execute(
+        cursor = await db.execute(
             "UPDATE tasks SET status=?, updated_at=? WHERE id=?",
             (status_update.status.value, now, task_id),
         )
+        if cursor.rowcount == 0:
+            return None
         await db.commit()
 
     return await get_task(task_id)
@@ -249,11 +295,9 @@ async def delete_task(task_id: str) -> bool:
     """Delete a task. Returns True if deleted, False if not found."""
     db_path = await get_db_path()
     async with aiosqlite.connect(db_path) as db:
-        cursor = await db.execute("SELECT id FROM tasks WHERE id = ?", (task_id,))
-        if await cursor.fetchone() is None:
+        cursor = await db.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        if cursor.rowcount == 0:
             return False
-
-        await db.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
         await db.commit()
     return True
 

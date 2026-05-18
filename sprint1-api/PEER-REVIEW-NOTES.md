@@ -82,8 +82,10 @@ engine = create_async_engine("postgresql+asyncpg://...")
 ```
 
 ### 2. **Authentication & Authorization**
-**Current:** No auth (endpoints are public)  
-**Recommendation:** Add JWT-based auth in Sprint 2
+**Current:** Write endpoints support optional token auth through `API_AUTH_TOKEN`;
+read endpoints remain public for Week 1 review.
+**Recommendation:** Replace the demo token gate with user-scoped JWT or session
+auth in a later sprint.
 
 ```python
 # Future: JWT validation
@@ -96,8 +98,9 @@ async def list_tasks(credentials: HTTPAuthCredentials = Depends(security)):
 ```
 
 ### 3. **Rate Limiting**
-**Current:** No rate limiting  
-**Recommendation:** Add in Sprint 2 for production safety
+**Current:** In-process per-client rate limiting protects `/api/` routes.
+**Recommendation:** Move rate limiting to an edge gateway or managed service for
+multi-instance production safety.
 
 ```python
 # Future: Rate limiting middleware

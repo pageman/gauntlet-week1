@@ -15,9 +15,12 @@ This module abstracts all protocol details behind a clean async interface.
 
 import asyncio
 import json
+import math
+import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 
 class MCPError(Exception):
@@ -54,6 +57,21 @@ class MCPClient:
     _request_id: int = field(default=0, init=False)
     _initialized: bool = field(default=False, init=False)
 
+    MIN_REQUEST_TIMEOUT: ClassVar[float] = 1.0
+    MAX_REQUEST_TIMEOUT: ClassVar[float] = 120.0
+    MAX_NOTIFICATIONS_PER_REQUEST: ClassVar[int] = 50
+    MAX_MESSAGE_BYTES: ClassVar[int] = 5_000_000
+
+    def __post_init__(self) -> None:
+        """Normalize timeout settings at construction."""
+        try:
+            timeout = float(self.request_timeout)
+        except (TypeError, ValueError):
+            timeout = 30.0
+        if not math.isfinite(timeout):
+            timeout = 30.0
+        self.request_timeout = min(max(timeout, self.MIN_REQUEST_TIMEOUT), self.MAX_REQUEST_TIMEOUT)
+
     def _next_id(self) -> int:
         """Generate next request ID."""
         self._request_id += 1
@@ -61,38 +79,98 @@ class MCPClient:
 
     async def connect(self) -> None:
         """Start the MCP server subprocess and initialize the protocol."""
-        try:
-            self._process = await asyncio.create_subprocess_exec(
-                *self.server_command,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-        except FileNotFoundError:
+        if not self.server_command:
             raise MCPConnectionError(
-                f"Cannot find MCP server command: {self.server_command[0]}",
-                suggestion="Ensure the MCP server is installed. "
-                "For the filesystem server: npm install -g @modelcontextprotocol/server-filesystem",
+                "MCP server command is empty",
+                suggestion="Configure MCP_SERVER_CMD or install the official filesystem server.",
             )
-        except PermissionError:
-            raise MCPConnectionError(
-                f"Permission denied executing: {self.server_command[0]}",
-                suggestion="Check that the server binary has execute permissions.",
-            )
-        except Exception as e:
-            raise MCPConnectionError(
-                f"Failed to start MCP server: {str(e)}",
-                suggestion="Verify the server command is correct and all dependencies are installed.",
-            )
-
         if self.framing not in {"jsonl", "content-length"}:
             raise MCPConnectionError(
                 f"Unsupported MCP stdio framing: {self.framing}",
                 suggestion="Use 'jsonl' for the official JS SDK server or 'content-length' for header-framed servers.",
             )
 
+        command_name = Path(self.server_command[0]).name
+        try:
+            self._process = await asyncio.create_subprocess_exec(
+                *self.server_command,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=self._subprocess_env(),
+                preexec_fn=self._apply_resource_limits if os.name == "posix" else None,
+            )
+        except FileNotFoundError:
+            raise MCPConnectionError(
+                "Cannot find MCP server command",
+                suggestion="Ensure the MCP server is installed. "
+                f"For '{command_name}', verify it is on PATH or set MCP_SERVER_CMD explicitly.",
+            )
+        except PermissionError:
+            raise MCPConnectionError(
+                "Permission denied executing MCP server command",
+                suggestion="Check that the server binary has execute permissions.",
+            )
+        except Exception as e:
+            print(f"[DEBUG] Unexpected MCP server startup error: {type(e).__name__}", file=sys.stderr)
+            raise MCPConnectionError(
+                "Failed to start MCP server",
+                suggestion="Verify the server command is correct and all dependencies are installed.",
+            ) from e
+
         # Send initialize request
-        await self._initialize()
+        try:
+            await self._initialize()
+        except Exception:
+            await self.disconnect()
+            raise
+
+    def _subprocess_env(self) -> dict[str, str]:
+        """Return a narrow environment for the MCP subprocess."""
+        allowed_names = {
+            "PATH",
+            "HOME",
+            "USER",
+            "LOGNAME",
+            "LANG",
+            "LC_ALL",
+            "TZ",
+            "TMPDIR",
+            "TMP",
+            "TEMP",
+            "SHELL",
+        }
+        sensitive_fragments = (
+            "TOKEN",
+            "SECRET",
+            "PASSWORD",
+            "PASSWD",
+            "API_KEY",
+            "ACCESS_KEY",
+            "PRIVATE_KEY",
+            "DATABASE_URL",
+            "SSH_AUTH_SOCK",
+        )
+        clean: dict[str, str] = {}
+        for name, value in os.environ.items():
+            upper_name = name.upper()
+            if upper_name in allowed_names and not any(fragment in upper_name for fragment in sensitive_fragments):
+                clean[name] = value
+        return clean
+
+    def _apply_resource_limits(self) -> None:
+        """Apply best-effort POSIX resource limits before exec."""
+        try:
+            import resource
+
+            resource.setrlimit(resource.RLIMIT_CPU, (60, 60))
+            resource.setrlimit(resource.RLIMIT_NOFILE, (256, 256))
+            if hasattr(resource, "RLIMIT_AS"):
+                one_gib = 1024 * 1024 * 1024
+                resource.setrlimit(resource.RLIMIT_AS, (one_gib, one_gib))
+        except Exception:
+            # Limits are best-effort and should not prevent local demo use.
+            pass
 
     async def _initialize(self) -> None:
         """Perform MCP protocol initialization handshake."""
@@ -112,6 +190,10 @@ class MCPClient:
                 "MCP server rejected initialization",
                 suggestion="Server may be incompatible. Expected protocol version 2024-11-05.",
             )
+        server_capabilities = response.get("result", {}).get("capabilities", {})
+        if os.environ.get("MCPFS_DEBUG_PROTOCOL"):
+            cap_keys = ",".join(sorted(server_capabilities)) or "none"
+            print(f"[DEBUG] MCP stdio framing={self.framing}; server_capabilities={cap_keys}", file=sys.stderr)
 
         # Send initialized notification
         await self._send_notification("notifications/initialized", {})
@@ -136,6 +218,7 @@ class MCPClient:
         await self._write_message(message)
 
         deadline = asyncio.get_running_loop().time() + self.request_timeout
+        notification_count = 0
         while True:
             remaining = deadline - asyncio.get_running_loop().time()
             if remaining <= 0:
@@ -154,6 +237,13 @@ class MCPClient:
 
             if response.get("id") == request_id:
                 return response
+
+            notification_count += 1
+            if notification_count > self.MAX_NOTIFICATIONS_PER_REQUEST:
+                raise MCPConnectionError(
+                    "MCP server sent too many unrelated messages while waiting for a response",
+                    suggestion="Restart the MCP server or reduce server-side notification volume.",
+                )
 
             if "method" in response and "id" in response:
                 await self._handle_server_request(response)
@@ -200,10 +290,15 @@ class MCPClient:
                 "MCP server closed connection unexpectedly",
                 suggestion="Check server logs for errors. The server process may have crashed.",
             )
+        if len(line) > self.MAX_MESSAGE_BYTES:
+            raise MCPConnectionError(
+                "MCP server response exceeded the maximum message size",
+                suggestion="Use a narrower command or reduce the amount of data returned.",
+            )
 
         try:
             return json.loads(line.decode("utf-8"))
-        except json.JSONDecodeError as exc:
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise MCPConnectionError(
                 "MCP server returned invalid JSON",
                 suggestion="Server may be sending non-protocol output on stdout. Check stderr.",
@@ -243,6 +338,11 @@ class MCPClient:
                 "MCP server response did not include a valid Content-Length header",
                 suggestion="Verify that the server speaks MCP over stdio.",
             ) from exc
+        if content_length < 0 or content_length > self.MAX_MESSAGE_BYTES:
+            raise MCPConnectionError(
+                "MCP server response exceeded the maximum message size",
+                suggestion="Use a narrower command or reduce the amount of data returned.",
+            )
 
         try:
             raw_body = await self._process.stdout.readexactly(content_length)
@@ -254,7 +354,7 @@ class MCPClient:
 
         try:
             return json.loads(raw_body.decode("utf-8"))
-        except json.JSONDecodeError as exc:
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise MCPConnectionError(
                 "MCP server returned invalid JSON",
                 suggestion="Server may be sending non-protocol output on stdout. Check stderr.",

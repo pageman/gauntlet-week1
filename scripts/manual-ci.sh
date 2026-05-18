@@ -7,6 +7,8 @@ BASE_URL="${BASE_URL:-https://gauntlet-week1.onrender.com}"
 RUN_SETUP="${RUN_SETUP:-1}"
 RUN_LIVE_SMOKE="${RUN_LIVE_SMOKE:-1}"
 RUN_OFFICIAL_MCP_SMOKE="${RUN_OFFICIAL_MCP_SMOKE:-0}"
+RUN_PY312_DEPRECATION_CHECK="${RUN_PY312_DEPRECATION_CHECK:-0}"
+PYTHON312_BIN="${PYTHON312:-python3.12}"
 
 echo "== Manual CI for Gauntlet Week 1 =="
 echo "Root: ${ROOT_DIR}"
@@ -33,7 +35,13 @@ echo "== Sprint 2 tests =="
 if [[ "${RUN_OFFICIAL_MCP_SMOKE}" == "1" ]]; then
   echo
   echo "== Official MCP filesystem smoke =="
-  (cd "${ROOT_DIR}/sprint2-cli" && "${PYTHON_BIN}" -m mcpfs.cli read README.md --lines 5)
+  (cd "${ROOT_DIR}/sprint2-cli" && MCP_REQUEST_TIMEOUT="${MCP_REQUEST_TIMEOUT:-120}" "${PYTHON_BIN}" -m mcpfs.cli read README.md --lines 5)
+fi
+
+if [[ "${RUN_PY312_DEPRECATION_CHECK}" == "1" ]]; then
+  echo
+  echo "== Python 3.12 deprecation check =="
+  (cd "${ROOT_DIR}/sprint1-api" && PYTHONWARNINGS=error::DeprecationWarning "${PYTHON312_BIN}" -m pytest tests -q)
 fi
 
 if [[ "${RUN_LIVE_SMOKE}" == "1" ]]; then

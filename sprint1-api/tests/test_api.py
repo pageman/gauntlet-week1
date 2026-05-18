@@ -8,8 +8,11 @@ Tests cover all 7 endpoints + health check with:
 """
 
 import pytest
-from datetime import datetime
+import aiosqlite
+from datetime import datetime, timezone
 from httpx import AsyncClient
+
+from app import main as app_main
 
 
 # ============================================================
@@ -140,6 +143,30 @@ async def test_create_task_invalid_date(client: AsyncClient):
     assert response.status_code == 422
 
 
+@pytest.mark.asyncio
+async def test_write_auth_is_required_when_token_configured(client: AsyncClient, sample_task, monkeypatch):
+    """Mutating endpoints require a token only when API_AUTH_TOKEN is configured."""
+    monkeypatch.setenv("API_AUTH_TOKEN", "test-secret")
+
+    missing = await client.post("/api/v1/tasks", json=sample_task)
+    assert missing.status_code == 401
+
+    valid = await client.post("/api/v1/tasks", json=sample_task, headers={"X-API-Key": "test-secret"})
+    assert valid.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_write_auth_blocks_unconfigured_production_writes(client: AsyncClient, sample_task, monkeypatch):
+    """Production mode fails closed if write auth is not configured."""
+    monkeypatch.delenv("API_AUTH_TOKEN", raising=False)
+    monkeypatch.setenv("ENVIRONMENT", "production")
+
+    response = await client.post("/api/v1/tasks", json=sample_task)
+
+    assert response.status_code == 503
+    assert "write authentication is not configured" in response.json()["detail"]
+
+
 # ============================================================
 # GET /api/v1/tasks — LIST TASKS
 # ============================================================
@@ -233,6 +260,24 @@ async def test_list_tasks_sort_order(client: AsyncClient):
     data = response.json()
     assert data["tasks"][0]["title"] == "Alpha"
     assert data["tasks"][1]["title"] == "Beta"
+
+
+@pytest.mark.asyncio
+async def test_list_tasks_rejects_invalid_sort_field(client: AsyncClient):
+    """Invalid sort fields return 422 instead of silently falling back."""
+    response = await client.get("/api/v1/tasks", params={"sort_by": "title;DROP TABLE tasks"})
+
+    assert response.status_code == 422
+    assert "Invalid sort field" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_list_tasks_rejects_invalid_sort_order(client: AsyncClient):
+    """Invalid sort order returns 422 before SQL construction."""
+    response = await client.get("/api/v1/tasks", params={"sort_order": "desc;DROP TABLE tasks"})
+
+    assert response.status_code == 422
+    assert "Invalid sort order" in response.json()["detail"]
 
 
 # ============================================================
@@ -446,6 +491,22 @@ async def test_concurrent_task_creation(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_rate_limit_returns_429(client: AsyncClient, monkeypatch):
+    """The lightweight limiter returns 429 after the configured threshold."""
+    app_main._rate_limit_hits.clear()
+    monkeypatch.setattr(app_main, "RATE_LIMIT_REQUESTS", 2)
+    monkeypatch.setattr(app_main, "RATE_LIMIT_WINDOW_SECONDS", 60)
+
+    assert (await client.get("/api/v1/tasks")).status_code == 200
+    assert (await client.get("/api/v1/tasks")).status_code == 200
+    response = await client.get("/api/v1/tasks")
+
+    assert response.status_code == 429
+    assert "Rate limit exceeded" in response.json()["detail"]
+    app_main._rate_limit_hits.clear()
+
+
+@pytest.mark.asyncio
 async def test_filter_by_tag(client: AsyncClient):
     """Filtering by tag works correctly."""
     await client.post("/api/v1/tasks", json={"title": "T1", "tags": ["urgent", "backend"]})
@@ -475,6 +536,39 @@ async def test_filter_by_tag_requires_exact_match(client: AsyncClient):
     assert exact_data["total"] == 1
     assert exact_data["tasks"][0]["title"] == "T2"
     assert exact_data["tasks"][0]["tags"] == ["ur"]
+
+
+@pytest.mark.asyncio
+async def test_malformed_stored_tags_and_timestamps_do_not_crash(client: AsyncClient, temp_db):
+    """Corrupt persisted optional fields are sanitized during response mapping."""
+    now = datetime.now(timezone.utc).isoformat()
+    async with aiosqlite.connect(temp_db) as db:
+        await db.execute(
+            """INSERT INTO tasks
+               (id, title, description, status, priority, assignee, due_date, tags, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                "corrupt-row",
+                "Corrupt optional fields",
+                None,
+                "pending",
+                "medium",
+                None,
+                "not-a-date",
+                "{not-json",
+                "not-a-datetime",
+                now,
+            ),
+        )
+        await db.commit()
+
+    response = await client.get("/api/v1/tasks/corrupt-row")
+    data = response.json()
+
+    assert response.status_code == 200
+    assert data["tags"] == []
+    assert data["due_date"] is None
+    assert datetime.fromisoformat(data["created_at"]).tzinfo is not None
 
 
 @pytest.mark.asyncio

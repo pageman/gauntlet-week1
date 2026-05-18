@@ -2,7 +2,7 @@
 
 Date: 2026-05-18
 Status: **review-ready, with explicit human/process blockers remaining**
-Strict completion claim: **not 100% until demo video and human peer review are attached**
+Strict completion claim: **not 100% until human peer review is attached and future commit cadence is proven**
 
 ## Executive Summary
 
@@ -13,7 +13,6 @@ adversarial peer-review notes.
 
 The remaining strict-Gauntlet blockers are human/process artifacts:
 
-- record and link a 3-minute demo video,
 - attach a human Sprint 2 peer review with at least five comments and responses,
 - preserve real-time atomic commit cadence in future weeks.
 
@@ -58,15 +57,15 @@ deployment uses temporary SQLite storage, so demo data may reset after restarts.
 | --- | --- | --- |
 | REST API with CRUD endpoints | `sprint1-api/app/main.py` | Done |
 | At least 5 endpoints | 8 FastAPI routes | Done |
-| Endpoint tests | `sprint1-api/tests/test_api.py` | Done |
+| Endpoint tests | `sprint1-api/tests/test_api.py` (`42 passed`) | Done |
 | Public deployment | Render URL above | Done |
 | AI log | `sprint1-api/AI-INTERACTION-LOG.md` | Done |
 | Peer-review notes | `sprint1-api/PEER-REVIEW-NOTES.md` | Done |
-| Demo video | `DEMO-SCRIPT.md` exists, video not linked | Pending human action |
+| Demo video | Linked from root `README.md` | Done |
 
 Sprint 1 is review-ready as a Week 1 deployed API. It is not a hardened
-production service: no authentication, no rate limiting, and free-tier
-temporary storage are deliberate Week 1 limitations.
+production service: optional write-token auth, lightweight in-process rate
+limiting, and free-tier temporary storage are deliberate Week 1 boundaries.
 
 ## Sprint 2 Status
 
@@ -78,6 +77,7 @@ temporary storage are deliberate Week 1 limitations.
 | CLI tests | `sprint2-cli/tests/test_cli.py` | Done |
 | MCP protocol tests | `sprint2-cli/tests/test_mcp_client.py` | Done |
 | Operations tests | `sprint2-cli/tests/test_operations_unit.py` | Done |
+| Sprint 2 test result | `python -m pytest tests -q` (`38 passed`) | Done |
 | Fake MCP server for deterministic tests | `sprint2-cli/tests/fake_mcp_server.py` | Done |
 | AI log | `sprint2-cli/AI-INTERACTION-LOG.md` | Done |
 | Adversarial review notes | `sprint2-cli/PEER-REVIEW-NOTES.md` | Done as AI review |
@@ -120,7 +120,7 @@ The repair pass addressed the primary adversarial findings:
 | Finding | Repair |
 | --- | --- |
 | Report claimed 100% completion despite missing Sprint 2 proof | Replaced with honest status and blocker list |
-| Sprint 2 tests folder was empty | Added 24 substantive tests |
+| Sprint 2 tests folder was empty | Added 38 substantive tests |
 | Official MCP server can request workspace roots | Added `roots/list` handling and regression coverage |
 | MCP stdio framing boundary was ambiguous | Added explicit JSONL and Content-Length transport modes |
 | Sprint 2 lacked official-server evidence | Verified `mcpfs read README.md --lines 5` through `npx -y @modelcontextprotocol/server-filesystem` |
@@ -132,30 +132,32 @@ The repair pass addressed the primary adversarial findings:
 | CORS was hard-coded | Added `ALLOWED_ORIGINS` env configuration |
 | `datetime.utcnow()` deprecation warnings | Replaced with timezone-aware `datetime.now(timezone.utc)` |
 | Tag filter substring false positives | Replaced JSON text `LIKE` with exact `json_each()` matching |
+| Progressive security audit findings | Added sort rejection, corrupt-row parsing, opt-in write auth, rate limiting, audit logs, symlink-aware path containment, MCP subprocess environment scrubbing, bounded message reads, resource limits, safe command parsing, unsafe-glob rejection, UTF-8 write checks, and bounded file previews |
 
 ## Current Score Estimate
 
 | Dimension | Weight | Current score | Rationale |
 | --- | ---: | ---: | --- |
-| Shipped system | 40 | 39 | Sprint 1 is public; Sprint 2 is tested/source-installable; demo video still pending |
-| Technical depth | 25 | 23 | MCP framing modes/tests repaired; auth/rate limiting remain acknowledged debt |
+| Shipped system | 40 | 40 | Sprint 1 is public; Sprint 2 is tested/source-installable; demo video is linked |
+| Technical depth | 25 | 24 | MCP framing modes/tests repaired; security audit guardrails are now covered by regression tests |
 | AI interaction log | 20 | 19 | Sprint 1 and Sprint 2 logs exist; raw transcript export is still imperfect |
-| Retrospective / defense readiness | 15 | 14 | Honest status, evidence manifest, and demo script exist; actual video/human defense pending |
-| **Total** | **100** | **95** | Strong repair, short of strict 100 because human demo/review evidence is not attached |
+| Retrospective / defense readiness | 15 | 14 | Honest status, evidence manifest, and demo evidence exist; human review/defense remains pending |
+| **Total** | **100** | **97** | Strong repair, short of strict 100 because human review evidence and future commit cadence remain outside the repo |
 
 ## Strict 100/100 Checklist
 
 To claim strict full completion, attach:
 
 ```text
-[ ] Demo video link showing Sprint 1 public API and Sprint 2 CLI.
+[x] Demo video link showing Sprint 1 public API and Sprint 2 CLI.
 [ ] Human Sprint 2 peer review with at least five comments and responses.
 [ ] Manual CI issue/transcript attached from `bash scripts/manual-ci.sh`.
 [ ] Optional GitHub release for Sprint 2 CLI package artifact.
+[ ] Future weeks preserve real-time atomic commit cadence.
 ```
 
 Until those boxes are complete, the honest label is:
 
 ```text
-Week 1 repaired and review-ready; strict pass pending human demo/review evidence.
+Week 1 repaired and review-ready; strict pass pending human peer review and future cadence evidence.
 ```
