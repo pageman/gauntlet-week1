@@ -87,6 +87,19 @@ Expected terminal result:
 24 passed
 ```
 
+## Week 1 Live API + Sprint 2 CLI Verification Flow
+
+Demo video:
+
+```text
+https://youtu.be/8-ADXN3AItI
+```
+
+This recording demonstrates the broader Week 1 evidence walkthrough: repo-root
+orientation, live Sprint 1 API checks, public `/docs` verification, Sprint 2
+test execution, `mcpfs` CLI commands, manual CI evidence, and the evidence
+manifest.
+
 Public smoke:
 
 ```bash
