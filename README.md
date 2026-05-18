@@ -68,6 +68,25 @@ python -m pip install -e ".[dev]"
 python -m pytest tests -q
 ```
 
+## Sprint 2 Manual Local Verification Flow
+
+Demo video:
+
+```text
+https://youtu.be/-3tBRgHGyBQ
+```
+
+This recording demonstrates the local Sprint 2 verification path: moving to the
+repo root, creating and activating a Python 3.11 virtual environment, installing
+`sprint2-cli` in editable mode with test dependencies, and running the Sprint 2
+test suite.
+
+Expected terminal result:
+
+```text
+24 passed
+```
+
 Public smoke:
 
 ```bash
