@@ -8,6 +8,7 @@ Tests cover all 7 endpoints + health check with:
 """
 
 import pytest
+from datetime import datetime
 from httpx import AsyncClient
 
 
@@ -24,6 +25,7 @@ async def test_health_check(client: AsyncClient):
     data = response.json()
     assert data["status"] == "healthy"
     assert "timestamp" in data
+    assert datetime.fromisoformat(data["timestamp"]).tzinfo is not None
     assert data["version"] == "1.0.0"
 
 
@@ -48,6 +50,8 @@ async def test_create_task_success(client: AsyncClient, sample_task):
     assert "id" in data
     assert "created_at" in data
     assert "updated_at" in data
+    assert datetime.fromisoformat(data["created_at"]).tzinfo is not None
+    assert datetime.fromisoformat(data["updated_at"]).tzinfo is not None
 
 
 @pytest.mark.asyncio
@@ -452,6 +456,25 @@ async def test_filter_by_tag(client: AsyncClient):
     data = response.json()
     assert data["total"] == 2
     assert all("urgent" in task["tags"] for task in data["tasks"])
+
+
+@pytest.mark.asyncio
+async def test_filter_by_tag_requires_exact_match(client: AsyncClient):
+    """Filtering by tag does not match substrings inside other tags."""
+    await client.post("/api/v1/tasks", json={"title": "T1", "tags": ["urgent"]})
+    await client.post("/api/v1/tasks", json={"title": "T2", "tags": ["ur"]})
+    await client.post("/api/v1/tasks", json={"title": "T3", "tags": ["super"]})
+
+    partial_response = await client.get("/api/v1/tasks", params={"tag": "urge"})
+    partial_data = partial_response.json()
+    assert partial_data["total"] == 0
+    assert partial_data["tasks"] == []
+
+    exact_response = await client.get("/api/v1/tasks", params={"tag": "ur"})
+    exact_data = exact_response.json()
+    assert exact_data["total"] == 1
+    assert exact_data["tasks"][0]["title"] == "T2"
+    assert exact_data["tasks"][0]["tags"] == ["ur"]
 
 
 @pytest.mark.asyncio

@@ -161,7 +161,7 @@ README.md           # This file
 
 - **AI-First Development**: Built using Claude Code with rigorous validation discipline
 - **Comprehensive Validation**: Pydantic models with custom validators for all inputs
-- **Full Endpoint Coverage**: 35 tests covering all endpoints and edge cases
+- **Full Endpoint Coverage**: 36 tests covering all endpoints and edge cases
 - **Clean Error Handling**: Structured JSON error responses with actionable messages
 - **Async/Await**: Built on FastAPI's async foundation for high concurrency
 - **Deployment-Ready**: Includes Docker support, health checks, and Render config

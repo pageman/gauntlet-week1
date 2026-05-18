@@ -3,7 +3,7 @@
 ## Executive Summary
 
 **Status:** ✅ DEPLOYED ON RENDER
-**Test Coverage:** 35/35 endpoint tests reported in this artifact
+**Test Coverage:** 36/36 endpoint tests reported in this artifact
 **Code Quality:** Week 1 production-style demo API
 **Deployment:** Public Render URL plus Docker/Render config
 
@@ -38,7 +38,7 @@ async def get_tasks(self, filters: dict = None) -> list[Task]:
 **Review:** Excellent use of async/await. Non-blocking I/O prevents event loop stalls. Connection management is clean.
 
 #### 3. **Comprehensive Test Coverage**
-- 35 tests covering all endpoints
+- 36 tests covering all endpoints
 - Happy paths, error paths, and edge cases
 - Proper use of pytest fixtures for isolation
 - Concurrent operation testing
@@ -194,7 +194,7 @@ logger.info("task_created", task_id=task.id, user_id=user_id)
 | DELETE /api/v1/tasks/{id} | 2 | ✅ |
 | Malformed JSON | 1 | ✅ |
 
-**Total:** 35 tests, all passing ✅
+**Total:** 36 tests, all passing ✅
 
 ### Test Quality
 
@@ -226,7 +226,7 @@ logger.info("task_created", task_id=task.id, user_id=user_id)
 1. **Render.com** (Recommended for MVP)
    - Free tier available
    - Auto-deploys from Git
-   - Persistent storage for SQLite
+   - Temporary storage caveat on free tier unless a paid persistent disk is configured
    - render.yaml configured ✅
 
 2. **Railway.app**
@@ -246,7 +246,7 @@ logger.info("task_created", task_id=task.id, user_id=user_id)
 | Metric | Value | Assessment |
 |--------|-------|------------|
 | Test Coverage | 100% | ✅ Excellent |
-| Tests Passing | 35/35 | ✅ Perfect |
+| Tests Passing | 36/36 | ✅ Perfect |
 | Type Hints | 95% | ✅ Excellent |
 | Docstrings | 90% | ✅ Good |
 | Cyclomatic Complexity | Low | ✅ Good |

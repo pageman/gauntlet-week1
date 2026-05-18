@@ -160,7 +160,7 @@ Returns 422 with structured error response (no raw parsing errors exposed).
 ## Testing
 
 - **Framework**: pytest with pytest-asyncio
-- **Coverage**: endpoint coverage through 35 tests
+- **Coverage**: endpoint coverage through 36 tests
 - **Scope**: Happy paths, validation errors, edge cases, filtering, pagination, sorting, concurrent operations
 - **Fixtures**: Async client, temporary database, sample task data
 

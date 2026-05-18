@@ -7,7 +7,7 @@ methodology: spec → generate → validate → own.
 import math
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -90,7 +90,7 @@ async def health_check():
     """Health check endpoint for deployment monitoring."""
     return HealthResponse(
         status="healthy",
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         version="1.0.0",
     )
 

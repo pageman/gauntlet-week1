@@ -4,7 +4,7 @@
 
 **Date:** May 18, 2026  
 **Task:** Build a Week 1 production-style REST API for task management following the AI-first development methodology with rigorous validation discipline
-**Outcome:** ✅ Complete, all 35 tests passing, deployable
+**Outcome:** ✅ Complete, all 36 tests passing, deployable
 
 ## Development Phases
 
@@ -225,7 +225,7 @@ async def client(temp_db):
 
 **Key Learning:** pytest-asyncio requires `@pytest_asyncio.fixture` for async fixtures, not `@pytest.fixture`
 
-**Result:** All 35 tests now pass ✅
+**Result:** All 36 tests now pass ✅
 
 ### Phase 8: Deployment Configuration
 
@@ -306,7 +306,7 @@ async def client(temp_db):
 | Metric | Value |
 |--------|-------|
 | Test Coverage | 100% (all endpoints) |
-| Tests Passing | 35/35 ✅ |
+| Tests Passing | 36/36 ✅ |
 | Validation Rules | 8 (title, tags, date, status, priority, etc.) |
 | Endpoints | 8 |
 | Lines of Code | ~800 (app + tests) |
@@ -318,7 +318,7 @@ Sprint 1 demonstrates the AI-first development methodology with rigorous validat
 
 1. **Specification First** — Clear requirements before code
 2. **Validation Discipline** — Every input validated, every error handled
-3. **Comprehensive Testing** — 35 tests covering happy paths, errors, and edge cases
+3. **Comprehensive Testing** — 36 tests covering happy paths, errors, and edge cases
 4. **Production Ready** — Dockerfile, health checks, structured error responses
 5. **Well Documented** — SPEC.md, README.md, inline comments
 

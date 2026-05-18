@@ -6,6 +6,7 @@
 | Sprint 1 public URL | `https://gauntlet-week1.onrender.com/health` | `curl -fsS .../health` | Done |
 | Sprint 1 live stress checks | `LIVE-STRESS-RESULTS.md` | Inspect 25-check summary | Done |
 | Sprint 1 endpoint tests | `sprint1-api/tests/test_api.py` | `cd sprint1-api && python -m pytest tests -q` | Done |
+| Sprint 1 Python 3.12 deprecation check | `sprint1-api/app/database.py`, `sprint1-api/app/main.py` | `PYTHONWARNINGS=error::DeprecationWarning python -m pytest tests -q` | Done |
 | Sprint 1 deployment docs | `sprint1-api/DEPLOYMENT-GUIDE.md`, `sprint1-api/render.yaml` | Inspect docs/config | Done |
 | Sprint 1 AI log | `sprint1-api/AI-INTERACTION-LOG.md` | Inspect accepted/rejected/tested notes | Done |
 | Sprint 1 peer review notes | `sprint1-api/PEER-REVIEW-NOTES.md` | Inspect notes | Done |

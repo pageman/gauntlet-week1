@@ -6,7 +6,7 @@ Implements a repository pattern for clean separation of concerns.
 
 import uuid
 import json
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional
 
 import aiosqlite
@@ -80,7 +80,7 @@ async def create_task(task: TaskCreate) -> TaskResponse:
     """Create a new task and return it."""
     db_path = await get_db_path()
     task_id = str(uuid.uuid4())
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     tags_json = json.dumps(task.tags if task.tags else [])
     due_date_str = task.due_date.isoformat() if task.due_date else None
 
@@ -158,8 +158,8 @@ async def list_tasks(
         conditions.append("assignee = ?")
         params.append(assignee)
     if tag:
-        conditions.append("tags LIKE ?")
-        params.append(f'%"{tag}"%')
+        conditions.append("EXISTS (SELECT 1 FROM json_each(tasks.tags) WHERE json_each.value = ?)")
+        params.append(tag)
 
     where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
 
@@ -196,7 +196,7 @@ async def list_tasks(
 async def update_task(task_id: str, task: TaskUpdate) -> Optional[TaskResponse]:
     """Full update of a task."""
     db_path = await get_db_path()
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     tags_json = json.dumps(task.tags if task.tags else [])
     due_date_str = task.due_date.isoformat() if task.due_date else None
 
@@ -229,7 +229,7 @@ async def update_task(task_id: str, task: TaskUpdate) -> Optional[TaskResponse]:
 async def update_task_status(task_id: str, status_update: StatusUpdate) -> Optional[TaskResponse]:
     """Update only the status of a task."""
     db_path = await get_db_path()
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
 
     async with aiosqlite.connect(db_path) as db:
         cursor = await db.execute("SELECT id FROM tasks WHERE id = ?", (task_id,))
