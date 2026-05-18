@@ -14,5 +14,5 @@ What this means:
 Current mitigation:
 
 - The repo now includes explicit evidence manifests, public deployment links,
-  Sprint 2 tests, Sprint 2 AI log, adversarial review notes, CI, and honest
-  status language.
+  Sprint 2 tests, Sprint 2 AI log, adversarial review notes, manual CI, and
+  honest status language.

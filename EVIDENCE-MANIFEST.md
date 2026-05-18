@@ -17,7 +17,7 @@
 | Sprint 2 adversarial review | `sprint2-cli/PEER-REVIEW-NOTES.md` | Inspect comment/response matrix | Done as AI review |
 | Human Sprint 2 peer review | Not yet attached | PR with five human comments/responses | Pending human follow-up |
 | Demo video | Not yet attached | Link in README/report | Pending human follow-up |
-| CI | `.github/workflows/ci.yml` | GitHub Actions run after push | Added |
+| Manual CI workaround | `scripts/manual-ci.sh`, `MANUAL-CI-EVIDENCE.md`, `Makefile` | `bash scripts/manual-ci.sh` | Done |
 | Process caveat | `PROCESS-CAVEAT.md` | Inspect file | Done |
 
 ## Scoring Interpretation

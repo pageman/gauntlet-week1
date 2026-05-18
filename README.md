@@ -7,6 +7,7 @@ Gauntlet. It contains:
 - `sprint2-cli/`: MCP-integrated filesystem CLI
 - `WEEK1-REPORT.md`: current status, score, remaining strict-pass blockers
 - `EVIDENCE-MANIFEST.md`: requirement-to-proof map
+- `MANUAL-CI-EVIDENCE.md`: local CI and live-smoke workaround evidence
 - `PROCESS-CAVEAT.md`: honest note about reconstructed history
 
 ## Live Sprint 1 API
@@ -74,6 +75,30 @@ curl -fsS https://gauntlet-week1.onrender.com/health
 curl -fsS https://gauntlet-week1.onrender.com/api/v1/tasks
 curl -fsS https://gauntlet-week1.onrender.com/api/v1/tasks/stats
 ```
+
+## Manual CI, No GitHub Actions Required
+
+GitHub Actions is intentionally not required for this submission because the
+account could not start Actions jobs while locked by a billing issue. The repo
+therefore uses a manual CI workaround that a reviewer can run and audit.
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+bash scripts/manual-ci.sh
+```
+
+The manual CI script installs dependencies, runs both Sprint test suites, and
+smokes the public Render API. To include the optional official MCP filesystem
+server smoke, run:
+
+```bash
+RUN_OFFICIAL_MCP_SMOKE=1 bash scripts/manual-ci.sh
+```
+
+Committed evidence and instructions live in `MANUAL-CI-EVIDENCE.md`. If a
+reviewer wants issue-based proof, copy the script output into a GitHub Issue
+titled `Manual CI Evidence` and link it from the review response.
 
 ## Current Strict-Gauntlet Status
 
@@ -165,9 +190,9 @@ optimism; it was reducing the number of claims a strict reviewer could falsify.
 ### Arc 6: Repair Pass To Review-Ready Evidence Package
 
 **Story box:** The repair pass converted the repo into a stronger evidence
-package: root-level verification commands, CI configuration, Sprint 2 tests,
-MCP framing support, `roots/list` handling, AI logs, adversarial review notes,
-live stress results, and a process caveat for the reconstructed commit history.
+package: root-level verification commands, manual CI, Sprint 2 tests, MCP
+framing support, `roots/list` handling, AI logs, adversarial review notes, live
+stress results, and a process caveat for the reconstructed commit history.
 
 **Method box:** The repair loop was: identify a falsifiable weakness, patch the
 smallest relevant surface, add or update tests, update docs to match the real
