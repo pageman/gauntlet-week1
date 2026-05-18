@@ -1,6 +1,29 @@
 # Task Management REST API
 
-A production-ready REST API for task management built with FastAPI, demonstrating AI-first development methodology with rigorous validation discipline.
+A Week 1 production-style REST API for task management built with FastAPI,
+demonstrating AI-first development methodology with rigorous validation
+discipline.
+
+## Live Deployment
+
+Public Render URL:
+
+```text
+https://gauntlet-week1.onrender.com
+```
+
+Useful live endpoints:
+
+```text
+https://gauntlet-week1.onrender.com/health
+https://gauntlet-week1.onrender.com/api/v1/tasks
+https://gauntlet-week1.onrender.com/api/v1/tasks/stats
+https://gauntlet-week1.onrender.com/docs
+```
+
+Render Free caveat: the first request after inactivity can take 20-30 seconds
+because the instance spins down. This free deployment uses temporary SQLite
+storage, so task data is demo data and may reset across restarts.
 
 ## Quick Start
 
@@ -33,13 +56,13 @@ uvicorn app.main:app --reload
 
 ```bash
 # Run all tests
-pytest
+python -m pytest tests -q
 
 # Run with verbose output
-pytest -v
+python -m pytest tests -v
 
 # Run with coverage
-pytest --cov=app tests/
+python -m pytest --cov=app tests/
 ```
 
 ### Docker Deployment
@@ -138,16 +161,17 @@ README.md           # This file
 
 - **AI-First Development**: Built using Claude Code with rigorous validation discipline
 - **Comprehensive Validation**: Pydantic models with custom validators for all inputs
-- **Full Test Coverage**: 37 tests covering all endpoints and edge cases
+- **Full Endpoint Coverage**: 35 tests covering all endpoints and edge cases
 - **Clean Error Handling**: Structured JSON error responses with actionable messages
 - **Async/Await**: Built on FastAPI's async foundation for high concurrency
-- **Production-Ready**: Includes Docker support, health checks, and CORS middleware
-- **Database Flexibility**: SQLite for development, PostgreSQL support via env vars
+- **Deployment-Ready**: Includes Docker support, health checks, and Render config
+- **Database Flexibility**: SQLite for Week 1 demo/development; PostgreSQL is future work
 
 ## Environment Variables
 
 - `DATABASE_PATH` — Path to SQLite database (default: `tasks.db`)
-- `PORT` — Server port (default: `8000`)
+- `PORT` — Server port supplied by the host platform; do not hardcode it on Render
+- `ALLOWED_ORIGINS` — Comma-separated CORS origins (default: `*` for Week 1 demo)
 
 ## Testing
 
@@ -175,31 +199,20 @@ See `AI-INTERACTION-LOG.md` for detailed session logs.
 
 ## Deployment
 
-### Railway
-
-```bash
-# Connect Railway CLI
-railway link
-
-# Deploy
-railway up
-```
-
 ### Render
 
 ```bash
-# Create render.yaml (included in repo)
-# Connect GitHub repository to Render
-# Deploy from dashboard
+Root Directory: sprint1-api
+Build Command: pip install -r requirements.txt
+Start Command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+Environment: DATABASE_PATH=/tmp/tasks.db
+Health Check Path: /health
 ```
 
-### Fly.io
+### Other Platforms
 
-```bash
-# Install Fly CLI
-# Deploy
-fly deploy
-```
+Railway and Fly.io are reasonable alternatives, but this repo currently ships a
+verified Render deployment as the public Week 1 evidence.
 
 ## Known Limitations
 

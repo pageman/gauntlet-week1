@@ -3,7 +3,7 @@
 ## Session Overview
 
 **Date:** May 18, 2026  
-**Task:** Build a production-ready REST API for task management following the AI-first development methodology with rigorous validation discipline  
+**Task:** Build a Week 1 production-style REST API for task management following the AI-first development methodology with rigorous validation discipline
 **Outcome:** ✅ Complete, all 35 tests passing, deployable
 
 ## Development Phases
@@ -133,7 +133,7 @@ CREATE TABLE tasks (
 - All inputs validated with Pydantic before processing
 - Structured error responses (no raw exceptions)
 - Proper HTTP status codes (201 for create, 204 for delete, etc.)
-- CORS enabled for all origins
+- CORS configurable through `ALLOWED_ORIGINS` (default `*` for Week 1 demo)
 
 **Rejected Features:**
 - ❌ Authentication (out of scope for Sprint 1)

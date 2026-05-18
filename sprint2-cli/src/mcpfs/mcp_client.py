@@ -15,9 +15,8 @@ This module abstracts all protocol details behind a clean async interface.
 
 import asyncio
 import json
-import os
-import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Optional
 
 
@@ -49,6 +48,8 @@ class MCPClient:
 
     server_command: list[str] = field(default_factory=list)
     allowed_paths: list[str] = field(default_factory=list)
+    framing: str = "jsonl"
+    request_timeout: float = 30.0
     _process: Optional[asyncio.subprocess.Process] = field(default=None, init=False)
     _request_id: int = field(default=0, init=False)
     _initialized: bool = field(default=False, init=False)
@@ -82,6 +83,12 @@ class MCPClient:
             raise MCPConnectionError(
                 f"Failed to start MCP server: {str(e)}",
                 suggestion="Verify the server command is correct and all dependencies are installed.",
+            )
+
+        if self.framing not in {"jsonl", "content-length"}:
+            raise MCPConnectionError(
+                f"Unsupported MCP stdio framing: {self.framing}",
+                suggestion="Use 'jsonl' for the official JS SDK server or 'content-length' for header-framed servers.",
             )
 
         # Send initialize request
@@ -126,36 +133,132 @@ class MCPClient:
             "params": params,
         }
 
-        line = json.dumps(message) + "\n"
-        self._process.stdin.write(line.encode())
+        await self._write_message(message)
+
+        deadline = asyncio.get_running_loop().time() + self.request_timeout
+        while True:
+            remaining = deadline - asyncio.get_running_loop().time()
+            if remaining <= 0:
+                raise MCPConnectionError(
+                    f"MCP server did not respond within {self.request_timeout:g} seconds",
+                    suggestion="The server may be unresponsive. Try restarting it.",
+                )
+
+            try:
+                response = await asyncio.wait_for(self._read_message(), timeout=remaining)
+            except asyncio.TimeoutError:
+                raise MCPConnectionError(
+                    f"MCP server did not respond within {self.request_timeout:g} seconds",
+                    suggestion="The server may be unresponsive. Try restarting it.",
+                )
+
+            if response.get("id") == request_id:
+                return response
+
+            if "method" in response and "id" in response:
+                await self._handle_server_request(response)
+                continue
+
+            # Ignore notifications and unrelated responses while waiting for
+            # this request. The official filesystem server may send its own
+            # requests such as roots/list before returning a tool result.
+
+    async def _write_message(self, message: dict) -> None:
+        """Write one MCP stdio message."""
+        if self._process is None or self._process.stdin is None:
+            raise MCPConnectionError(
+                "Not connected to MCP server",
+                suggestion="Call connect() before making requests.",
+            )
+
+        if self.framing == "content-length":
+            body = json.dumps(message, separators=(",", ":")).encode("utf-8")
+            header = f"Content-Length: {len(body)}\r\n\r\n".encode("ascii")
+            self._process.stdin.write(header + body)
+        else:
+            line = json.dumps(message, separators=(",", ":")) + "\n"
+            self._process.stdin.write(line.encode("utf-8"))
         await self._process.stdin.drain()
 
-        # Read response
-        try:
-            response_line = await asyncio.wait_for(
-                self._process.stdout.readline(), timeout=10.0
-            )
-        except asyncio.TimeoutError:
+    async def _read_message(self) -> dict:
+        """Read one MCP stdio message."""
+        if self.framing == "content-length":
+            return await self._read_content_length_message()
+        return await self._read_jsonl_message()
+
+    async def _read_jsonl_message(self) -> dict:
+        """Read one newline-delimited JSON-RPC message."""
+        if self._process is None or self._process.stdout is None:
             raise MCPConnectionError(
-                "MCP server did not respond within 10 seconds",
-                suggestion="The server may be unresponsive. Try restarting it.",
+                "Not connected to MCP server",
+                suggestion="Call connect() before making requests.",
             )
 
-        if not response_line:
+        line = await self._process.stdout.readline()
+        if not line:
             raise MCPConnectionError(
                 "MCP server closed connection unexpectedly",
                 suggestion="Check server logs for errors. The server process may have crashed.",
             )
 
         try:
-            response = json.loads(response_line.decode())
-        except json.JSONDecodeError:
+            return json.loads(line.decode("utf-8"))
+        except json.JSONDecodeError as exc:
             raise MCPConnectionError(
                 "MCP server returned invalid JSON",
-                suggestion="Server may be sending non-protocol output. Check stderr.",
+                suggestion="Server may be sending non-protocol output on stdout. Check stderr.",
+            ) from exc
+
+    async def _read_content_length_message(self) -> dict:
+        """Read one Content-Length-framed JSON-RPC message."""
+        if self._process is None or self._process.stdout is None:
+            raise MCPConnectionError(
+                "Not connected to MCP server",
+                suggestion="Call connect() before making requests.",
             )
 
-        return response
+        headers: dict[str, str] = {}
+        while True:
+            line = await self._process.stdout.readline()
+            if not line:
+                raise MCPConnectionError(
+                    "MCP server closed connection unexpectedly",
+                    suggestion="Check server logs for errors. The server process may have crashed.",
+                )
+            if line in (b"\r\n", b"\n"):
+                break
+            try:
+                name, value = line.decode("ascii").split(":", 1)
+            except ValueError as exc:
+                raise MCPConnectionError(
+                    "MCP server returned malformed headers",
+                    suggestion="Server may not be using MCP Content-Length framing.",
+                ) from exc
+            headers[name.lower()] = value.strip()
+
+        try:
+            content_length = int(headers["content-length"])
+        except (KeyError, ValueError) as exc:
+            raise MCPConnectionError(
+                "MCP server response did not include a valid Content-Length header",
+                suggestion="Verify that the server speaks MCP over stdio.",
+            ) from exc
+
+        try:
+            raw_body = await self._process.stdout.readexactly(content_length)
+        except asyncio.IncompleteReadError as exc:
+            raise MCPConnectionError(
+                "MCP server closed connection before sending the full response",
+                suggestion="Check server logs for protocol or runtime errors.",
+            ) from exc
+
+        try:
+            return json.loads(raw_body.decode("utf-8"))
+        except json.JSONDecodeError as exc:
+            raise MCPConnectionError(
+                "MCP server returned invalid JSON",
+                suggestion="Server may be sending non-protocol output on stdout. Check stderr.",
+            ) from exc
 
     async def _send_notification(self, method: str, params: dict) -> None:
         """Send a JSON-RPC notification (no response expected)."""
@@ -168,9 +271,36 @@ class MCPClient:
             "params": params,
         }
 
-        line = json.dumps(message) + "\n"
-        self._process.stdin.write(line.encode())
-        await self._process.stdin.drain()
+        await self._write_message(message)
+
+    async def _handle_server_request(self, message: dict) -> None:
+        """Handle JSON-RPC requests sent by the MCP server."""
+        request_id = message.get("id")
+        method = message.get("method")
+
+        if method == "roots/list":
+            roots = []
+            for root in self.allowed_paths:
+                try:
+                    root_uri = Path(root).resolve().as_uri()
+                except ValueError:
+                    continue
+                roots.append({"uri": root_uri, "name": str(Path(root).resolve())})
+            await self._write_message({
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {"roots": roots},
+            })
+            return
+
+        await self._write_message({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "error": {
+                "code": -32601,
+                "message": f"Unsupported client method: {method}",
+            },
+        })
 
     async def call_tool(self, tool_name: str, arguments: dict) -> Any:
         """Call an MCP tool and return the result.

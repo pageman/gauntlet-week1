@@ -5,6 +5,7 @@ methodology: spec → generate → validate → own.
 """
 
 import math
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional
@@ -47,16 +48,21 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Task Management API",
-    description="A production-ready task management REST API built with AI-first methodology.",
+    description="A Week 1 production-style task management REST API built with AI-first methodology.",
     version="1.0.0",
     lifespan=lifespan,
 )
 
 # CORS middleware
+allowed_origins = [
+    origin.strip()
+    for origin in os.environ.get("ALLOWED_ORIGINS", "*").split(",")
+    if origin.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

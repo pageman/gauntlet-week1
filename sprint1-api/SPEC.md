@@ -2,7 +2,7 @@
 
 ## Overview
 
-A production-ready Task Management REST API built with FastAPI following the AI-first development methodology: **spec → generate → validate → own**. This API demonstrates the core principles of the Gauntlet curriculum: rigorous specification before code, AI-assisted development with validation discipline, and comprehensive test coverage.
+A Week 1 production-style Task Management REST API built with FastAPI following the AI-first development methodology: **spec → generate → validate → own**. This API demonstrates the core principles of the Gauntlet curriculum: rigorous specification before code, AI-assisted development with validation discipline, public deployment, and comprehensive endpoint testing.
 
 ## What It Does
 
@@ -145,22 +145,22 @@ Returns 422 with structured error response (no raw parsing errors exposed).
 
 ## Database
 
-- **Storage**: SQLite (development), supports PostgreSQL via DATABASE_PATH env var
+- **Storage**: SQLite for the Week 1 demo; PostgreSQL is future work
 - **Schema**: Single `tasks` table with indexed columns (status, priority, assignee)
 - **Initialization**: Automatic on application startup via lifespan context manager
 
 ## Deployment
 
 - **Framework**: FastAPI with Uvicorn
-- **Container**: Docker with multi-stage build
+- **Container**: Docker with health check
 - **Health Check**: HTTP GET /health endpoint
-- **CORS**: Enabled for all origins (configurable)
+- **CORS**: Configurable through `ALLOWED_ORIGINS`; default is `*` for Week 1 demo
 - **Port**: 8000 (configurable via PORT env var)
 
 ## Testing
 
 - **Framework**: pytest with pytest-asyncio
-- **Coverage**: 100% endpoint coverage (37 tests)
+- **Coverage**: endpoint coverage through 35 tests
 - **Scope**: Happy paths, validation errors, edge cases, filtering, pagination, sorting, concurrent operations
 - **Fixtures**: Async client, temporary database, sample task data
 

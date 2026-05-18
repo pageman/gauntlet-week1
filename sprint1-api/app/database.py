@@ -1,6 +1,6 @@
 """Database layer for the Task Management API.
 
-Uses SQLite for development and supports PostgreSQL via DATABASE_URL env var.
+Uses SQLite for the Week 1 demo. PostgreSQL support is future work.
 Implements a repository pattern for clean separation of concerns.
 """
 

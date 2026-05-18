@@ -1,5 +1,22 @@
 # Deployment Guide — Task Management REST API
 
+## Current Public Render Deployment
+
+```text
+https://gauntlet-week1.onrender.com
+```
+
+Verified:
+
+```bash
+curl https://gauntlet-week1.onrender.com/health
+curl https://gauntlet-week1.onrender.com/api/v1/tasks
+curl https://gauntlet-week1.onrender.com/api/v1/tasks/stats
+```
+
+This is a Render Free deployment. It may cold-start after inactivity and uses
+temporary SQLite storage.
+
 ## Quick Deploy to Render.com (Recommended)
 
 ### Prerequisites
@@ -19,12 +36,15 @@
    - Go to https://render.com/dashboard
    - Click "New +" → "Web Service"
    - Connect your GitHub repository
-   - Select the repository with `render.yaml`
+   - Select the repository
+   - Set Root Directory to `sprint1-api`
 
 3. **Configure Deployment**
-   - Render auto-detects `render.yaml`
-   - Confirms Python 3.11 runtime
-   - Sets up persistent volume for SQLite
+   - Runtime: Python 3.11
+   - Build Command: `pip install -r requirements.txt`
+   - Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+   - Environment: `DATABASE_PATH=/tmp/tasks.db`
+   - Health Check Path: `/health`
 
 4. **Deploy**
    - Click "Create Web Service"
@@ -69,8 +89,8 @@
 
 3. **Configure Environment**
    - Railway auto-detects Python
-   - Sets PORT environment variable
-   - Creates persistent volume for SQLite
+   - Sets `PORT` environment variable
+   - Use a managed database or documented temporary SQLite storage
 
 4. **Deploy**
    - Click "Deploy"
@@ -185,14 +205,14 @@ docker-compose up
 |----------|---------|-------------|
 | `DATABASE_PATH` | `tasks.db` | Path to SQLite database |
 | `PORT` | `8000` | Server port |
-| `CORS_ORIGINS` | `*` | CORS allowed origins |
+| `ALLOWED_ORIGINS` | `*` | Comma-separated CORS allowed origins |
 
 ### Production Recommendations
 
 ```bash
-# Render.com environment variables
-DATABASE_PATH=/data/tasks.db
-PORT=8000
+# Render Free environment variables
+DATABASE_PATH=/tmp/tasks.db
+ALLOWED_ORIGINS=*
 ```
 
 ---

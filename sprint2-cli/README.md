@@ -1,6 +1,8 @@
 # mcpfs — Intelligent File Operations via Model Context Protocol
 
-A command-line tool that integrates with the Model Context Protocol (MCP) filesystem server to provide intelligent file operations without raw stack traces or direct filesystem access.
+A command-line tool that integrates with a Model Context Protocol (MCP)
+filesystem server to provide file operations through MCP tool calls, with
+actionable errors and no raw stack traces.
 
 ## Quick Start
 
@@ -25,6 +27,7 @@ Set environment variables to configure the MCP server:
 
 ```bash
 # Default: uses npx to run @modelcontextprotocol/server-filesystem
+# and scopes it to the current working directory.
 export MCP_SERVER_PATH="/path/to/workspace"
 export MCP_SERVER_CMD="npx,-y,@modelcontextprotocol/server-filesystem,/path/to/workspace"
 ```
@@ -197,21 +200,30 @@ No raw stack traces are ever shown to users.
 
 ```bash
 # Run tests
-pytest tests/ -v
+python -m pytest tests -q
 
 # Run with coverage
 pytest tests/ --cov=mcpfs
 ```
 
+Current default test suite:
+
+- MCP stdio JSONL and Content-Length framing tests
+- MCP client error translation tests
+- CLI command smoke tests against a fake MCP filesystem server
+- Operations-layer unit tests
+- Workspace-boundary checks
+- "No direct file operation" checks for the operations layer
+
 ## Known Limitations
 
 1. **Requires running MCP server** — Must have Node.js and @modelcontextprotocol/server-filesystem installed
-2. **No recursive tree** — Tree command shows only one level deep (use --depth to control)
-3. **No content grep** — Search is pattern-based, not content-based
-4. **No persistent connection** — Each command creates a new connection to the server
-5. **Binary file issues** — Large or binary files may not display correctly
-6. **No wildcard operations** — Move/create don't support wildcards
-7. **Node.js dependency** — Requires Node.js for the MCP server
+2. **No content grep** — Search is pattern-based, not content-based
+3. **No persistent connection** — Each command creates a new connection to the server
+4. **Binary file issues** — Large or binary files may not display correctly
+5. **No wildcard operations** — Move/create don't support wildcards
+6. **Node.js dependency** — Requires Node.js for the official MCP filesystem server
+7. **Human review still needed** — The repo includes adversarial review notes, but a strict Gauntlet pass should include a human PR review with five comments and responses
 
 ## Development
 
@@ -234,9 +246,11 @@ src/mcpfs/
 
 tests/
 ├── __init__.py
-├── conftest.py          # Pytest fixtures
-├── test_cli.py          # CLI tests
-└── test_operations.py   # Operations tests
+├── conftest.py
+├── fake_mcp_server.py
+├── test_cli.py
+├── test_mcp_client.py
+└── test_operations_unit.py
 ```
 
 ## Support
@@ -256,4 +270,5 @@ This project was built using AI-first methodology with strict validation discipl
 3. **Validated** — Security and error handling verified
 4. **Owned** — All changes documented and explained
 
-See `AI-INTERACTION-LOG.md` for detailed session logs.
+See `AI-INTERACTION-LOG.md` for Sprint 2 session logs and
+`PEER-REVIEW-NOTES.md` for the adversarial review matrix.

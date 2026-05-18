@@ -45,6 +45,24 @@ class FileOperations:
     def __init__(self, client: MCPClient):
         self.client = client
 
+    def _resolve_path(self, path: str) -> str:
+        """Resolve a path and ensure it remains within an allowed MCP root.
+
+        The CLI may normalize paths for display and for client-side guardrails,
+        but metadata, listing, reading, writing, and moving still happen through
+        MCP tool calls.
+        """
+        abs_path = os.path.abspath(path)
+        allowed_paths = [os.path.abspath(root) for root in self.client.allowed_paths]
+        if allowed_paths:
+            if not any(os.path.commonpath([root, abs_path]) == root for root in allowed_paths):
+                roots = ", ".join(allowed_paths)
+                raise MCPToolError(
+                    f"Path '{path}' is outside the configured MCP workspace",
+                    suggestion=f"Use a path under one of the allowed roots: {roots}",
+                )
+        return abs_path
+
     async def search_files(self, pattern: str, search_path: str = ".") -> list[str]:
         """Search for files matching a glob pattern.
 
@@ -55,7 +73,7 @@ class FileOperations:
         Returns:
             List of matching file paths
         """
-        abs_path = os.path.abspath(search_path)
+        abs_path = self._resolve_path(search_path)
 
         try:
             result = await self.client.call_tool("search_files", {
@@ -91,7 +109,7 @@ class FileOperations:
         Returns:
             List of directory entries
         """
-        abs_path = os.path.abspath(path)
+        abs_path = self._resolve_path(path)
 
         try:
             result = await self.client.call_tool("list_directory", {
@@ -147,7 +165,7 @@ class FileOperations:
         Returns:
             FileInfo with metadata
         """
-        abs_path = os.path.abspath(path)
+        abs_path = self._resolve_path(path)
 
         try:
             result = await self.client.call_tool("get_file_info", {
@@ -223,7 +241,7 @@ class FileOperations:
         Returns:
             File content as string
         """
-        abs_path = os.path.abspath(path)
+        abs_path = self._resolve_path(path)
 
         try:
             result = await self.client.call_tool("read_file", {
@@ -270,7 +288,7 @@ class FileOperations:
         Returns:
             Confirmation message
         """
-        abs_path = os.path.abspath(path)
+        abs_path = self._resolve_path(path)
 
         try:
             await self.client.call_tool("write_file", {
@@ -297,8 +315,8 @@ class FileOperations:
         Returns:
             Confirmation message
         """
-        abs_source = os.path.abspath(source)
-        abs_dest = os.path.abspath(destination)
+        abs_source = self._resolve_path(source)
+        abs_dest = self._resolve_path(destination)
 
         try:
             await self.client.call_tool("move_file", {
@@ -329,7 +347,7 @@ class FileOperations:
         Returns:
             Dictionary with file counts, sizes, and type breakdown
         """
-        abs_path = os.path.abspath(path)
+        abs_path = self._resolve_path(path)
         entries = await self.list_directory(path)
 
         stats = {

@@ -29,15 +29,17 @@ error_console = Console(stderr=True)
 
 def get_mcp_client() -> MCPClient:
     """Create an MCP client configured for the filesystem server."""
-    server_path = os.environ.get("MCP_SERVER_PATH", "/tmp/mcpfs-workspace")
+    server_path = os.path.abspath(os.environ.get("MCP_SERVER_PATH", os.getcwd()))
     server_cmd = os.environ.get(
         "MCP_SERVER_CMD",
         "npx,-y,@modelcontextprotocol/server-filesystem," + server_path,
     ).split(",")
+    framing = os.environ.get("MCP_STDIO_FRAMING", "jsonl")
 
     return MCPClient(
         server_command=server_cmd,
         allowed_paths=[server_path],
+        framing=framing,
     )
 
 
@@ -156,22 +158,27 @@ def tree(path: str, depth: int):
         try:
             await client.connect()
             ops = FileOperations(client)
-            entries = await ops.list_directory(path)
+            max_depth = max(depth, 1)
+
+            async def add_entries(node: Tree, current_path: str, current_depth: int) -> None:
+                entries = await ops.list_directory(current_path)
+                dirs = sorted([e for e in entries if e.is_directory], key=lambda x: x.name)
+                files = sorted([e for e in entries if not e.is_directory], key=lambda x: x.name)
+
+                for directory in dirs:
+                    child = node.add(f"[bold blue]{directory.name}/[/bold blue]")
+                    if current_depth < max_depth:
+                        await add_entries(child, directory.path, current_depth + 1)
+
+                for file_entry in files:
+                    node.add(f"[green]{file_entry.name}[/green]")
 
             abs_path = os.path.abspath(path)
             tree_widget = Tree(f"[bold blue]{abs_path}[/bold blue]")
-
-            dirs = sorted([e for e in entries if e.is_directory], key=lambda x: x.name)
-            files = sorted([e for e in entries if not e.is_directory], key=lambda x: x.name)
-
-            for d in dirs:
-                tree_widget.add(f"[bold blue]{d.name}/[/bold blue]")
-
-            for f in files:
-                tree_widget.add(f"[green]{f.name}[/green]")
+            await add_entries(tree_widget, path, 1)
 
             console.print(tree_widget)
-            console.print(f"\n[dim]{len(dirs)} directories, {len(files)} files[/dim]")
+            console.print(f"\n[dim]Displayed to depth {max_depth}[/dim]")
         finally:
             await client.disconnect()
 

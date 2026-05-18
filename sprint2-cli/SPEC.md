@@ -19,7 +19,9 @@ A CLI tool that connects to an MCP filesystem server and provides:
 The tool communicates with an MCP server using the Model Context Protocol:
 
 - Connects via stdio transport to a local MCP filesystem server
-- Uses the standard MCP request/response format (JSON-RPC 2.0)
+- Uses JSON-RPC 2.0 over stdio. The default transport is newline-delimited
+  JSON for compatibility with the official JavaScript filesystem server; an
+  explicit `content-length` mode is also supported for header-framed servers.
 - Calls MCP tools: `read_file`, `write_file`, `list_directory`, `search_files`, `get_file_info`, `move_file`
 - Handles MCP protocol errors gracefully
 
@@ -63,7 +65,7 @@ No raw stack traces are ever shown to the user. Internal errors are caught and t
 
 ## Non-Functional Requirements
 
-- Startup time: < 500ms for any command
+- Startup time target: < 500ms after the MCP server is warm
 - Output: Formatted for terminal (colors, tables where appropriate)
 - Exit codes: 0 for success, 1 for user errors, 2 for system errors
 - No external API keys required
@@ -72,7 +74,8 @@ No raw stack traces are ever shown to the user. Internal errors are caught and t
 ## Dependencies
 
 - Python 3.11+
-- `mcp` Python SDK (for MCP client)
+- Direct stdio transport implementation for MCP JSONL and Content-Length
+  framing modes
 - `click` for CLI framework
 - `rich` for terminal formatting
 
@@ -82,7 +85,9 @@ No raw stack traces are ever shown to the user. Internal errors are caught and t
 2. Error messages are always actionable (no stack traces)
 3. README documents installation, usage, and limitations
 4. Code handles MCP server being unavailable gracefully
-5. All operations go through MCP protocol (no direct os.path calls for file operations)
+5. File reads, writes, moves, metadata, and directory listing go through MCP tool
+   calls. Client-side path normalization is allowed only for display and
+   workspace-boundary checks.
 
 ## Implementation Notes
 
@@ -109,21 +114,23 @@ No raw stack traces are ever shown to the user. Internal errors are caught and t
 
 ## Testing Strategy
 
-- Unit tests for operations layer (mocked MCP client)
-- Integration tests for CLI commands
-- Error handling tests for all failure modes
-- Edge case tests (empty directories, large files, permissions)
+- Unit tests for operations layer with a mocked MCP client
+- Protocol tests using fake JSONL and Content-Length framed MCP servers
+- CLI command tests against the fake MCP server
+- Error handling tests for server-missing, path-missing, and workspace-boundary cases
+- Edge case tests for empty directories, line limits, and path traversal attempts
 
 ## Deployment
 
 - Installable via `pip install -e .` from source
 - Can be packaged as standalone executable with PyInstaller
-- Requires Node.js and @modelcontextprotocol/server-filesystem for runtime
+- Requires Node.js and @modelcontextprotocol/server-filesystem for official
+  runtime verification
 
 ## Known Limitations
 
 1. Requires running MCP server
-2. No recursive tree (use --depth to control)
+2. Recursive tree is intentionally bounded by --depth
 3. No content grep (pattern-based search only)
 4. No persistent connection (new connection per command)
 5. Binary file handling limited
