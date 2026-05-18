@@ -1,0 +1,229 @@
+# Task Management REST API
+
+A production-ready REST API for task management built with FastAPI, demonstrating AI-first development methodology with rigorous validation discipline.
+
+## Quick Start
+
+### Installation
+
+```bash
+# Clone the repository
+git clone <repo-url>
+cd sprint1-api
+
+# Create virtual environment
+python3.11 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### Running Locally
+
+```bash
+# Run the API
+uvicorn app.main:app --reload
+
+# The API will be available at http://localhost:8000
+# OpenAPI docs at http://localhost:8000/docs
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run with verbose output
+pytest -v
+
+# Run with coverage
+pytest --cov=app tests/
+```
+
+### Docker Deployment
+
+```bash
+# Build the image
+docker build -t task-api:latest .
+
+# Run the container
+docker run -p 8000:8000 -e DATABASE_PATH=/data/tasks.db task-api:latest
+
+# The API will be available at http://localhost:8000
+```
+
+## API Endpoints
+
+### Health Check
+- **GET** `/health` — System health status
+
+### Task Operations
+- **POST** `/api/v1/tasks` — Create a new task
+- **GET** `/api/v1/tasks` — List tasks (with filtering, sorting, pagination)
+- **GET** `/api/v1/tasks/stats` — Get task statistics
+- **GET** `/api/v1/tasks/{task_id}` — Get a single task
+- **PUT** `/api/v1/tasks/{task_id}` — Update a task (full update)
+- **PATCH** `/api/v1/tasks/{task_id}/status` — Update task status only
+- **DELETE** `/api/v1/tasks/{task_id}` — Delete a task
+
+## Example Usage
+
+### Create a Task
+
+```bash
+curl -X POST http://localhost:8000/api/v1/tasks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Implement authentication",
+    "description": "Add JWT-based authentication to the API",
+    "priority": "high",
+    "assignee": "alice",
+    "tags": ["backend", "security"]
+  }'
+```
+
+### List Tasks with Filtering
+
+```bash
+# List all pending tasks
+curl "http://localhost:8000/api/v1/tasks?status=pending"
+
+# List high-priority tasks assigned to alice
+curl "http://localhost:8000/api/v1/tasks?priority=high&assignee=alice"
+
+# List tasks with pagination
+curl "http://localhost:8000/api/v1/tasks?page=1&per_page=10"
+
+# Sort by title ascending
+curl "http://localhost:8000/api/v1/tasks?sort_by=title&sort_order=asc"
+```
+
+### Get Task Statistics
+
+```bash
+curl http://localhost:8000/api/v1/tasks/stats
+```
+
+### Update a Task Status
+
+```bash
+curl -X PATCH http://localhost:8000/api/v1/tasks/{task_id}/status \
+  -H "Content-Type: application/json" \
+  -d '{"status": "completed"}'
+```
+
+## Architecture
+
+```
+app/
+├── __init__.py
+├── main.py           # FastAPI application and endpoints
+├── models.py         # Pydantic models for validation
+└── database.py       # SQLite repository layer
+
+tests/
+├── __init__.py
+├── conftest.py       # Pytest fixtures and configuration
+└── test_api.py       # Comprehensive test suite
+
+Dockerfile           # Container definition
+requirements.txt     # Python dependencies
+SPEC.md             # Detailed specification
+README.md           # This file
+```
+
+## Key Features
+
+- **AI-First Development**: Built using Claude Code with rigorous validation discipline
+- **Comprehensive Validation**: Pydantic models with custom validators for all inputs
+- **Full Test Coverage**: 37 tests covering all endpoints and edge cases
+- **Clean Error Handling**: Structured JSON error responses with actionable messages
+- **Async/Await**: Built on FastAPI's async foundation for high concurrency
+- **Production-Ready**: Includes Docker support, health checks, and CORS middleware
+- **Database Flexibility**: SQLite for development, PostgreSQL support via env vars
+
+## Environment Variables
+
+- `DATABASE_PATH` — Path to SQLite database (default: `tasks.db`)
+- `PORT` — Server port (default: `8000`)
+
+## Testing
+
+The test suite includes:
+
+- **Health check tests** — Verify system health endpoint
+- **CRUD operation tests** — Create, read, update, delete functionality
+- **Validation tests** — Invalid inputs, boundary conditions, malformed JSON
+- **Filtering tests** — Status, priority, assignee, tag filters
+- **Pagination tests** — Page navigation, per_page limits
+- **Sorting tests** — Multiple sort fields and orders
+- **Edge cases** — Concurrent operations, not-found scenarios
+- **Error handling** — Proper HTTP status codes and error messages
+
+## AI Interaction Log
+
+This project was built using AI-first methodology with strict validation discipline. All AI-generated code was:
+
+1. **Reviewed** — Every function read and understood before committing
+2. **Tested** — Comprehensive test suite validates all behavior
+3. **Validated** — Security vulnerabilities (e.g., SQL injection) caught and fixed
+4. **Owned** — All changes documented and explained
+
+See `AI-INTERACTION-LOG.md` for detailed session logs.
+
+## Deployment
+
+### Railway
+
+```bash
+# Connect Railway CLI
+railway link
+
+# Deploy
+railway up
+```
+
+### Render
+
+```bash
+# Create render.yaml (included in repo)
+# Connect GitHub repository to Render
+# Deploy from dashboard
+```
+
+### Fly.io
+
+```bash
+# Install Fly CLI
+# Deploy
+fly deploy
+```
+
+## Known Limitations
+
+- Single-instance deployment (no horizontal scaling in this sprint)
+- SQLite not recommended for high-concurrency production (use PostgreSQL)
+- No authentication/authorization in this sprint
+- No rate limiting in this sprint
+
+## Development
+
+### Adding a New Endpoint
+
+1. Define the request/response models in `app/models.py`
+2. Add database operations in `app/database.py`
+3. Add the endpoint in `app/main.py`
+4. Write tests in `tests/test_api.py`
+5. Run tests: `pytest`
+
+### Running with Hot Reload
+
+```bash
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+## Support
+
+For issues or questions, refer to the SPEC.md for detailed requirements or review the test suite for usage examples.
