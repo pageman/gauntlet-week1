@@ -296,10 +296,10 @@ async def client(temp_db):
 ## Remaining Tasks (Week 1)
 
 - ✅ Sprint 1 API complete and tested
-- ⏳ Sprint 2 CLI restructured (in progress)
-- ⏳ Deploy Sprint 1 to public URL
-- ⏳ Write comprehensive peer review notes
-- ⏳ Generate final progress report
+- ✅ Sprint 2 CLI restructured and tested
+- ✅ Sprint 1 public URL deployed and documented
+- ✅ Write comprehensive peer review notes
+- ✅ Generate final progress report
 
 ## Code Quality Metrics
 
